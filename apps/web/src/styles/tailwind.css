@@ -15,10 +15,15 @@
  *      validar colores que ya no son los que se pintan.
  *   4. Ningún alias de acá puede llamarse igual que un token de tokens.css:
  *      `--color-primary: var(--color-primary)` es un ciclo y se resuelve como
- *      valor inválido. Por eso los alias tienen nombre semántico propio.
+ *      valor inválido. Por eso `primary` apunta al hueco de marca directamente.
+ *   5. NO se declara `--color-secondary`. tokens.css ya usa ese nombre para el
+ *      acento del tenant y gana por orden de import, así que la utilidad
+ *      `bg-secondary` de shadcn pintaría teal en vez de una superficie neutra.
+ *      El vocabulario de shadcn usa `bg-sunken` en su lugar.
  */
 
 @import 'tailwindcss';
+@import 'tw-animate-css';
 
 /* El tema se cambia con data-theme en <html>, no con prefers-color-scheme. */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
@@ -28,47 +33,60 @@
 @source '../../../packages/ui/src';
 
 @theme inline {
-  /* Superficies: la escalera de tokens.css, con nombres de rol. */
-  --color-app: var(--color-surface);
-  --color-panel: var(--color-surface-container-lowest);
-  --color-raised: var(--color-surface-container-low);
+  /* ── Vocabulario de shadcn/ui, apuntado a los tokens de AlToke ───────── */
+
+  --color-background: var(--color-surface);
+  --color-foreground: var(--color-on-surface);
+
+  --color-card: var(--color-surface-container-lowest);
+  --color-card-foreground: var(--color-on-surface);
+
+  --color-popover: var(--color-surface-container-lowest);
+  --color-popover-foreground: var(--color-on-surface);
+
+  /* Acción principal: sale del hueco de marca del tenant. */
+  --color-primary: var(--brand-primary);
+  --color-primary-foreground: var(--color-on-primary);
+
+  --color-muted: var(--color-surface-container-low);
+  --color-muted-foreground: var(--color-on-surface-variant);
+
+  /* `accent` en shadcn es la superficie de hover/selección, no el acento de marca. */
+  --color-accent: var(--color-primary-container);
+  --color-accent-foreground: var(--color-on-primary-container);
+
+  --color-destructive: var(--color-error);
+  --color-destructive-foreground: var(--color-on-error);
+
+  --color-border: var(--color-outline-variant);
+  --color-input: var(--color-outline);
+  --color-ring: var(--brand-primary);
+
+  /* ── Extras del POS, con nombre propio para no chocar con shadcn ─────── */
+
+  /* Escalera de superficies que shadcn no nombra */
   --color-sunken: var(--color-surface-container-high);
   --color-sunken-deep: var(--color-surface-container-highest);
 
-  /* Tinta */
-  --color-ink: var(--color-on-surface);
-  --color-ink-muted: var(--color-on-surface-variant);
-  --color-line: var(--color-outline-variant);
-  --color-line-strong: var(--color-outline);
-  --color-placeholder-ink: var(--color-placeholder);
-
-  /* Acción principal: sale del hueco de marca, no de una paleta propia. */
-  --color-action: var(--color-primary);
-  --color-action-ink: var(--color-on-primary);
-  --color-action-soft: var(--color-primary-container);
-  --color-action-soft-ink: var(--color-on-primary-container);
-
-  /* Acento del tenant */
-  --color-accent: var(--color-secondary);
-  --color-accent-ink: var(--color-on-secondary);
-  --color-accent-soft: var(--color-secondary-container);
-  --color-accent-soft-ink: var(--color-on-secondary-container);
+  /* Acento del tenant (distinto de `accent`, ver arriba) */
+  --color-brand-accent: var(--color-secondary);
+  --color-brand-accent-foreground: var(--color-on-secondary);
 
   /* Resultado: cobrado, cuadrado, vuelto */
-  --color-good: var(--color-tertiary);
-  --color-good-ink: var(--color-on-tertiary);
-  --color-good-soft: var(--color-tertiary-container);
-  --color-good-soft-ink: var(--color-on-tertiary-container);
+  --color-success: var(--color-tertiary);
+  --color-success-foreground: var(--color-on-tertiary);
+  --color-success-soft: var(--color-tertiary-container);
+  --color-success-soft-foreground: var(--color-on-tertiary-container);
 
-  /* Error: anular, faltante */
-  --color-danger: var(--color-error);
-  --color-danger-ink: var(--color-on-error);
+  /* Error suave: faltante, anulación pendiente */
   --color-danger-soft: var(--color-error-container);
-  --color-danger-soft-ink: var(--color-on-error-container);
+  --color-danger-soft-foreground: var(--color-on-error-container);
 
-  /* Papel del ticket sobre fondo oscuro */
+  /* Papel del ticket dibujado sobre fondo oscuro */
   --color-paper: var(--color-inverse-surface);
-  --color-paper-ink: var(--color-inverse-on-surface);
+  --color-paper-foreground: var(--color-inverse-on-surface);
+
+  --color-placeholder-ink: var(--color-placeholder);
 
   /*
    * Radios: mismos valores que packages/ui/src/tokens.css §Radios.

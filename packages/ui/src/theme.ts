@@ -21,7 +21,13 @@ export const MARCA_POR_DEFECTO: MarcaTenant = {
  * con estos cuatro colores fijos, así que una tinta clara desaparece encima de ellos (1.05:1 sobre
  * blanco). Hasta que los contenedores se deriven de la marca, el guard valida contra todos.
  */
-export const CONTENEDORES_DEL_TEMA_CLARO = ['#ffffff', '#f5f2fa', '#efecf4', '#e9e7ee'] as const
+export const CONTENEDORES_DEL_TEMA_CLARO = [
+  '#ffffff',
+  '#f5f2fa',
+  '#efecf4',
+  '#e9e7ee',
+  '#e4e1e9',
+] as const
 
 /**
  * Los cinco huecos que un tenant sobrescribe (`0001` §7). Es el contrato entre `tokens.css` y las

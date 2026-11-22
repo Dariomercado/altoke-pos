@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CONTENEDORES_DEL_TEMA_CLARO } from '@altoke/ui'
 import tailwindCss from './tailwind.css?raw'
 import tokensCss from '../../../../packages/ui/src/tokens.css?raw'
 
@@ -68,5 +69,40 @@ describe('capa de Tailwind v4', () => {
 
   it('el tema oscuro se activa con data-theme, no con prefers-color-scheme', () => {
     expect(temaSinComentarios).toMatch(/@custom-variant\s+dark\s*\(\s*&:where\(\[data-theme=['"]dark['"]\]/)
+  })
+
+  /*
+   * Este es el test que evita que el guard de contraste quede decorativo.
+   *
+   * El guard de marca valida la tinta del tenant contra una lista fija de
+   * superficies (CONTENEDORES_DEL_TEMA_CLARO). Si el rediseño pinta texto sobre
+   * una superficie que no está en esa lista, el guard sigue aprobando marcas que
+   * en pantalla son ilegibles.
+   */
+  it('toda superficie que lleva la tinta del tenant está cubierta por el guard', () => {
+    const cubiertas = new Set<string>(CONTENEDORES_DEL_TEMA_CLARO.map(hex => hex.toLowerCase()))
+    const conTintaDelTenant = [
+      '--color-card',
+      '--color-popover',
+      '--color-muted',
+      '--color-sunken',
+      '--color-sunken-deep',
+    ] as const
+
+    for (const alias of conTintaDelTenant) {
+      const referencia = tema.get(alias)?.match(/var\((--[a-z0-9-]+)\)/)?.[1]
+      expect(referencia, `${alias} no apunta a un token`).toBeDefined()
+      const hex = tokens.get(referencia ?? '')?.toLowerCase()
+      expect(hex, `${referencia} no declara un valor en tokens.css`).toBeDefined()
+      expect(
+        cubiertas.has(hex ?? ''),
+        `${alias} → ${referencia} (${hex}) no está en CONTENEDORES_DEL_TEMA_CLARO: el guard no la valida`,
+      ).toBe(true)
+    }
+  })
+
+  it('el fondo sigue siendo el hueco de marca, no un hex fijo', () => {
+    // Si `background` se congelara, la marca del tenant no pintaría el fondo.
+    expect(tema.get('--color-background')).toBe('var(--color-surface)')
   })
 })
