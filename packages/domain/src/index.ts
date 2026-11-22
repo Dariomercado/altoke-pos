@@ -1,2 +1,9 @@
-// Placeholder: se completa en las tareas de M1. Ver odd/tasks/altoke-m1-pos.md.
-export {}
+// Dominio puro de AlToke (invariante I1): sin IO, sin React, sin otros paquetes del workspace.
+export {
+  ALICUOTAS_IVA,
+  desglosarIva,
+  esCentavos,
+  importeConIva,
+  redondearMitadArriba,
+} from './dinero'
+export type { AlicuotaBps, Centavos } from './dinero'
