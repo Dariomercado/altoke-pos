@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "paths": {
+      "@altoke/domain": ["./packages/domain/src/index.ts"],
+      "@altoke/store": ["./packages/store/src/index.ts"],
+      "@altoke/contracts": ["./packages/contracts/src/index.ts"],
+      "@altoke/ui": ["./packages/ui/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "apps/*/src/**/*.ts", "vitest.config.ts"]
+}
