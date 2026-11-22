@@ -32,13 +32,14 @@ Specs de referencia: `docs/specs/0001-arquitectura.md` y `docs/specs/0002-fiscal
 | T5 | Dominio: arqueo de caja por denominación | S4 | inline | `20f6f98` |
 | T6 | Puerto `PosStore` + adaptador en memoria (tests) + adaptador IndexedDB (web real) + suite única de contrato | S3, S8 | inline | `d7ea003` |
 | T7 | POS: cobrar contra el store, totales reales, ticket de 80 mm | S1, S4 | inline + worker | `c583afd` `8248a64` |
-| T8 | Branding en vivo: 5 variables por tenant, preview del POS y del ticket | S2 | inline | ⬜ |
+| T8 | Branding en vivo: 5 variables por tenant, preview del POS y del ticket | S2 | inline + worker | `7ee3576` `8c82c88` |
 
-**Corte de entrega:** la rama `feat/m1-pos-kiosco` acumula T1..T7 en ~5.046 líneas de autoría, por
-encima de la rebanada de ~400. Cada tarea es un commit independiente y revisable solo; la entrega se
-corta en cadena (T1 → … → T7) en lugar de un único PR. Fronteras de rebanada: `81601a7` (T1),
-`507c250` (T2), `c35216d` (T3), `9fb12b6` (T4), `20f6f98` (T5), `d7ea003` (T6), `c583afd` (T7
-lógica), `8248a64` (T7 pantalla), `0c57dcc` (fix del billete de 5.000).
+**Corte de entrega:** la rama `feat/m1-pos-kiosco` acumula T1..T8 en ~6.017 líneas de autoría: no es
+un PR, es una cadena. Cada tarea es uno o dos commits revisables solos. Fronteras: `81601a7` (T1),
+`507c250` (T2), `c35216d` (T3), `9fb12b6` (T4), `20f6f98` (T5), `0c57dcc` (fix billete de 5.000),
+`d7ea003` (T6), `c583afd` (T7 lógica), `8248a64` (T7 pantalla), `7ee3576` (T8), `8c82c88` (fix del
+guard de marca). Orden de entrega sugerido: T3+T4+T5 (dominio) → T6 (store) → T7 (POS) → T2+T8
+(interfaz y marca).
 
 **Deuda que T6 deja anotada para T7** (hallazgos de la verificación independiente, todos fuera del
 puerto):
@@ -133,3 +134,26 @@ Consecuencias de construir el POS que no estaban en la tabla:
    rechaza en vez de dejar el POS gris sobre gris.
 4. **Una base IndexedDB por tenant** (`altoke-kiosco-1`), como pide `0001` §6: la base local contiene
    sólo su tenant y se purga al cerrar sesión. El cableado vive en `apps/web`, no en el adaptador.
+
+### L8 — Verificación independiente de T6 y T8
+
+Dos pasadas de verificación independiente sobre los commits `d7ea003` (T6) y `7ee3576` (T8). Qué
+encontraron y qué se hizo:
+
+- **T6** (persistencia): el contrato no probaba el desempate por terminal, ni la secuencia acusada
+  inválida, ni el lote con ids repetidos. Peor: el adaptador en memoria guardaba la referencia del
+  llamador (más permisivo que IndexedDB) y un evento no clonable dejaba medio lote escrito. Corregido
+  en el mismo commit: clonado profundo antes de escribir, rechazo previo a la transacción, apertura
+  fallida que no se cachea, y seis casos nuevos en la suite de contrato.
+- **T8** (marca): el guard de contraste sólo miraba el fondo del tenant y no los contenedores del
+  tema claro, así que una marca oscura se aceptaba y quedaba ilegible sobre las tarjetas; el loader
+  no aplicaba ni el guard ni la allowlist del logo; limpiar el logo dejaba un `<img src="">`; y `MARCA_POR_DEFECTO` no coincidía con la paleta de `tokens.css`, así que la app cambiaba el color del
+  POS sin que nadie lo hubiera pedido. Corregido en `8c82c88`.
+
+**Limitación aceptada de M1:** la marca admite fondos claros. Los contenedores del tema claro todavía
+no derivan de `--brand-surface`, así que una marca oscura se rechaza con el ratio medido en vez de
+aplicarse rota. Cuando los contenedores deriven de la marca (T9, si el piloto pide tema oscuro
+marca-blanca), se relaja el guard y se actualiza `CONTENEDORES_DEL_TEMA_CLARO`.
+
+Brecha conocida que no se cierra en M1: `--brand-logo` se aplica y se borra como hueco, pero el logo
+visible lo dibuja React; ninguna regla CSS consume la variable todavía.
