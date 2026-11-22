@@ -1,0 +1,89 @@
+/*
+ * AlToke — capa de Tailwind v4.
+ *
+ * Reglas de este archivo:
+ *   1. Es el ÚNICO lugar del repo donde entra `@import "tailwindcss"`. No puede
+ *      entrar en packages/ui/src/tokens.css: `theme.test.ts` parsea ese archivo
+ *      como texto con un regex de bloques y prohíbe la paleta default de
+ *      Tailwind y su radio de 0.375rem.
+ *   2. Se importa ANTES que tokens.css (ver main.tsx). Los dos declaran
+ *      `:root`, misma especificidad, gana el último: así nuestros radios y
+ *      fuentes pisan los de Tailwind sin `!important`.
+ *   3. `@theme inline` es obligatorio: mantiene las declaraciones como
+ *      `var(--token)` en vez de congelar el valor en build. Si se congela, la
+ *      marca del tenant deja de propagarse y el guard de contraste pasa a
+ *      validar colores que ya no son los que se pintan.
+ *   4. Ningún alias de acá puede llamarse igual que un token de tokens.css:
+ *      `--color-primary: var(--color-primary)` es un ciclo y se resuelve como
+ *      valor inválido. Por eso los alias tienen nombre semántico propio.
+ */
+
+@import 'tailwindcss';
+
+/* El tema se cambia con data-theme en <html>, no con prefers-color-scheme. */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/* Los componentes viven en apps/web/src; ui/ queda por si suma JSX más adelante. */
+@source '../../src';
+@source '../../../packages/ui/src';
+
+@theme inline {
+  /* Superficies: la escalera de tokens.css, con nombres de rol. */
+  --color-app: var(--color-surface);
+  --color-panel: var(--color-surface-container-lowest);
+  --color-raised: var(--color-surface-container-low);
+  --color-sunken: var(--color-surface-container-high);
+  --color-sunken-deep: var(--color-surface-container-highest);
+
+  /* Tinta */
+  --color-ink: var(--color-on-surface);
+  --color-ink-muted: var(--color-on-surface-variant);
+  --color-line: var(--color-outline-variant);
+  --color-line-strong: var(--color-outline);
+  --color-placeholder-ink: var(--color-placeholder);
+
+  /* Acción principal: sale del hueco de marca, no de una paleta propia. */
+  --color-action: var(--color-primary);
+  --color-action-ink: var(--color-on-primary);
+  --color-action-soft: var(--color-primary-container);
+  --color-action-soft-ink: var(--color-on-primary-container);
+
+  /* Acento del tenant */
+  --color-accent: var(--color-secondary);
+  --color-accent-ink: var(--color-on-secondary);
+  --color-accent-soft: var(--color-secondary-container);
+  --color-accent-soft-ink: var(--color-on-secondary-container);
+
+  /* Resultado: cobrado, cuadrado, vuelto */
+  --color-good: var(--color-tertiary);
+  --color-good-ink: var(--color-on-tertiary);
+  --color-good-soft: var(--color-tertiary-container);
+  --color-good-soft-ink: var(--color-on-tertiary-container);
+
+  /* Error: anular, faltante */
+  --color-danger: var(--color-error);
+  --color-danger-ink: var(--color-on-error);
+  --color-danger-soft: var(--color-error-container);
+  --color-danger-soft-ink: var(--color-on-error-container);
+
+  /* Papel del ticket sobre fondo oscuro */
+  --color-paper: var(--color-inverse-surface);
+  --color-paper-ink: var(--color-inverse-on-surface);
+
+  /*
+   * Radios: mismos valores que packages/ui/src/tokens.css §Radios.
+   * Si cambian allá, cambian acá: hay un test que compara los dos archivos.
+   */
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+
+  /* Medidas táctiles del POS, como utilidades de tamaño. */
+  --spacing-touch: 2.75rem;
+  --spacing-control: 3rem;
+  --spacing-header: 4rem;
+
+  /* Elevación. No puede llamarse --shadow-panel: sería un ciclo con el token homónimo. */
+  --shadow-card: var(--shadow-panel);
+}
