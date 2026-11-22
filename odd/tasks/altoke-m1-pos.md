@@ -30,12 +30,16 @@ Specs de referencia: `docs/specs/0001-arquitectura.md` y `docs/specs/0002-fiscal
 | T3 | Dominio: dinero en centavos enteros, IVA incluido, redondeo half-up | S3, S4 | inline | ⬜ |
 | T4 | Dominio: libro de eventos + proyecciones (stock, total de turno) | S3 | inline | ⬜ |
 | T5 | Dominio: arqueo de caja por denominación | S4 | inline | ⬜ |
-| T6 | Puerto `PosStore` + adaptador en memoria + suite única de contrato | S8 | inline | ⬜ |
+| T6 | Puerto `PosStore` + adaptador en memoria (tests) + adaptador IndexedDB (web real) + suite única de contrato | S3, S8 | inline | ⬜ |
 | T7 | POS: cobrar contra el store, totales reales, ticket de 80 mm | S1, S4 | inline | ⬜ |
 | T8 | Branding en vivo: 5 variables por tenant, preview del POS y del ticket | S2 | inline | ⬜ |
 
-Fuera de M1, y a propósito: API, sync multi-terminal, fiscal, roles reales, alta de tenant,
-persistencia en IndexedDB. Ver el roadmap de `0001` §2 y `0002` §7.
+Fuera de M1, y a propósito: API, sync multi-terminal, fiscal, roles reales y alta de tenant. Ver el
+roadmap de `0001` §2 y `0002` §7.
+
+**Corrección posterior a L6:** la persistencia en IndexedDB **sí entra en M1**. Sin ella el POS pierde
+todo al recargar la pestaña y no sirve para pilotear, que es el objetivo real de M1. El adaptador en
+memoria existe para tests, no para uso.
 
 ## Log
 
@@ -86,3 +90,14 @@ Consecuencia arquitectónica registrada en `0001` §0.2: el costo marginal por t
 
 Precio, soporte, alta de tenant y piloto aceptados según la propuesta, con el precio en modalidad de
 pago único.
+
+### L6 — Piloto y material impreso
+
+> "para el primer cliente tengo que hacer la prueba con kiosco piloto o entendi mal? tambien pensaba en
+> hacer un folleto o hoja a4 para imprimir despues y pasar a dejarla en los kioscos para que me
+> contacten si estan interesados"
+
+Aclaración: el piloto **no** es una prueba previa al primer cliente — el piloto **es** el primer
+cliente. El folleto va después del piloto, porque necesita su foto y su frase.
+
+Consecuencia sobre el plan: sin persistencia no hay piloto posible. IndexedDB entra en M1 (ver T6).

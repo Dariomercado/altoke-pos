@@ -103,6 +103,39 @@ renovación anual opcional al 25–30% del inicial. **Nunca se bloquea el sistem
 renueva sigue cobrando con la versión que tiene, sin actualizaciones ni soporte. Eso es lo que hace
 que la promesa "es tuyo" sea verdadera y sostenible a la vez.
 
+### Reglas de la renovación
+
+$$\text{renovación} = 25\text{–}30\% \times \text{precio inicial de instalación}$$
+
+| Momento | Qué paga | Qué recibe |
+|---|---|---|
+| Instalación (día 0) | 100% del precio | licencia + instalación + catálogo + 12 meses de soporte y actualizaciones |
+| Cada aniversario | 25–30% del inicial | 12 meses más de lo mismo |
+
+1. **El porcentaje se calcula siempre sobre el precio inicial de instalación**, nunca sobre la
+   renovación anterior. No compone.
+2. **Si no renueva, no se le apaga nada.** Sigue cobrando y cerrando caja con la versión que tiene.
+   Pierde versiones nuevas y soporte. Nada más.
+3. **Si vuelve, paga el año corriente.** Sin penalidad y sin acumular los años salteados. El objetivo
+   es que vuelva, no castigarlo.
+4. **Aviso 30 días antes.** Una renovación sorpresa es una renovación perdida.
+
+**Incluye:** versiones nuevas, corrección de errores y soporte por WhatsApp en el horario declarado.
+Nada más, y nada menos.
+
+**Dos cosas que no se hacen:**
+
+- **No bloquear el sistema.** Rompe la promesa central y obliga a mantener un kill switch que es a la
+  vez riesgo técnico y riesgo reputacional.
+- **No prometer features futuras como carnada.** Si prometés el sync para el año que viene y no llega,
+  perdés el cliente y la palabra. La renovación se sostiene en soporte, actualizaciones y
+  **cumplimiento fiscal**: el año que el organismo cambie algo, el que no renovó queda con un sistema
+  que ya no factura bien. Ese año la renovación se vende sola.
+
+**Por qué esto protege al desarrollador y no sólo al negocio:** en una ciudad chica no se le puede
+negar soporte a un cliente que te conoce. Sin un marco explícito, el soporte gratuito ocurre igual,
+pero sin ingreso y sin reconocimiento. La renovación es lo que da un límite conversable.
+
 ---
 
 ## 1. Los tres invariantes
