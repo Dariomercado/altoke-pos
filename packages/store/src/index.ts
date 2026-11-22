@@ -1,2 +1,5 @@
-// Placeholder: se completa en las tareas de M1. Ver odd/tasks/altoke-m1-pos.md.
-export {}
+export { crearIndexedDbStore } from './indexeddb'
+export type { OpcionesIndexedDb } from './indexeddb'
+export { crearStoreEnMemoria } from './memoria'
+export { leerDeLibro, ordenarLibro, proyectarLibroOrdenado, validarLote } from './pos-store'
+export type { PosStore } from './pos-store'

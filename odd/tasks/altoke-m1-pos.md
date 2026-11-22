@@ -28,16 +28,16 @@ Specs de referencia: `docs/specs/0001-arquitectura.md` y `docs/specs/0002-fiscal
 | T1 | Monorepo pnpm: workspaces, tsconfig base, lint que prohíbe React en `domain` | S8 | inline | ✅ |
 | T2 | Tokens de diseño como CSS custom properties, claro/oscuro, drift de Stitch corregido | S2, S6 | inline | `507c250` |
 | T3 | Dominio: dinero en centavos enteros, IVA incluido, redondeo half-up | S3, S4 | inline | `c35216d` |
-| T4 | Dominio: libro de eventos + proyecciones (stock, total de turno) | S3 | inline | ⬜ |
+| T4 | Dominio: libro de eventos + proyecciones (stock, total de turno) | S3 | inline | `9fb12b6` |
 | T5 | Dominio: arqueo de caja por denominación | S4 | inline | ⬜ |
 | T6 | Puerto `PosStore` + adaptador en memoria (tests) + adaptador IndexedDB (web real) + suite única de contrato | S3, S8 | inline | ⬜ |
 | T7 | POS: cobrar contra el store, totales reales, ticket de 80 mm | S1, S4 | inline | ⬜ |
 | T8 | Branding en vivo: 5 variables por tenant, preview del POS y del ticket | S2 | inline | ⬜ |
 
-**Corte de entrega:** la rama `feat/m1-pos-kiosco` acumula T1+T2+T3 en ~1.044 líneas de autoría, por
+**Corte de entrega:** la rama `feat/m1-pos-kiosco` acumula T1..T4 en ~1.834 líneas de autoría, por
 encima de la rebanada de ~400. Cada tarea es un commit independiente y revisable solo; la entrega se
-corta en cadena (T1 → T2 → T3 → …) en lugar de un único PR. Corte de rebanada: T1+T2 y T3, con
-`81601a7` y `c35216d` como fronteras.
+corta en cadena (T1 → T2 → T3 → T4 → …) en lugar de un único PR. Fronteras de rebanada: `81601a7`
+(T1), `507c250` (T2), `c35216d` (T3), `9fb12b6` (T4).
 
 Fuera de M1, y a propósito: API, sync multi-terminal, fiscal, roles reales y alta de tenant. Ver el
 roadmap de `0001` §2 y `0002` §7.
