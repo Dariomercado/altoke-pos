@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280, initial-scale=1">
+<title>AlToke — 05 Cierre de caja · ticket</title>
+<style>
+  /* Tokens: subconjunto exacto de packages/ui/src/tokens.css (oscuro). */
+  :root {
+    color-scheme: dark;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    --space-xs: .25rem; --space-sm: .5rem; --space-md: 1rem;
+    --space-lg: 1.5rem; --space-xl: 2.5rem;
+    --page-margin-desktop: 2rem;
+
+    --radius-xs: .125rem; --radius-sm: .25rem; --radius-md: .5rem;
+    --radius-lg: .75rem; --radius-full: 9999px;
+
+    --size-touch-min: 2.75rem; --size-control: 3rem; --size-header: 4rem;
+    --shadow-overlay: 0 20px 25px -5px rgb(0 0 0 / 50%), 0 8px 10px -6px rgb(79 70 229 / 12%);
+    --focus-ring-width: 2px;
+
+    --brand-primary: #c3c0ff; --brand-accent: #6bd8cb;
+    --brand-surface: #0b1326; --brand-text: #dae2fd;
+
+    --color-primary: var(--brand-primary); --color-on-primary: #1d00a5;
+    --color-primary-container: #4f46e5; --color-on-primary-container: #dad7ff;
+    --color-secondary: var(--brand-accent); --color-on-secondary: #003732;
+    --color-secondary-container: #29a195; --color-on-secondary-container: #00302b;
+    --color-tertiary: #4edea3; --color-on-tertiary: #003824;
+    --color-tertiary-container: #006e4b; --color-on-tertiary-container: #67f4b7;
+    --color-error: #ffb4ab; --color-on-error: #690005;
+    --color-error-container: #93000a; --color-on-error-container: #ffdad6;
+    --color-surface: var(--brand-surface);
+    --color-surface-dim: #0b1326; --color-surface-bright: #31394d;
+    --color-surface-container-lowest: #060e20;
+    --color-surface-container-low: #131b2e;
+    --color-surface-container: #171f33;
+    --color-surface-container-high: #222a3d;
+    --color-surface-container-highest: #2d3449;
+    --color-on-surface: var(--brand-text);
+    --color-on-surface-variant: #c7c4d8;
+    --color-outline: #918fa1; --color-outline-variant: #464555;
+    --color-placeholder: var(--color-on-surface-variant);
+    --color-inverse-surface: #dae2fd;
+    --color-inverse-on-surface: #283044;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: var(--font-ui); font-size: .9375rem; line-height: 1.5rem;
+    height: 800px; overflow: hidden;
+    display: grid; grid-template-rows: var(--size-header) 1fr;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; }
+  :where(:focus-visible) { outline: var(--focus-ring-width) solid var(--color-primary); outline-offset: 2px; }
+
+  header {
+    display: flex; align-items: center; gap: var(--space-md);
+    padding: 0 var(--page-margin-desktop);
+    border-bottom: 1px solid var(--color-outline-variant);
+    background: var(--color-surface-container-lowest);
+  }
+  .brand { display: flex; align-items: baseline; gap: var(--space-sm); }
+  .brand b { font-family: var(--font-sans); font-size: 1.25rem; line-height: 1.75rem; letter-spacing: -.01em; font-weight: 700; }
+  .brand span { font-size: .75rem; letter-spacing: .02em; color: var(--color-on-surface-variant); }
+  .divider { width: 1px; height: 1.5rem; background: var(--color-outline-variant); }
+  .turno { font-size: .75rem; letter-spacing: .02em; color: var(--color-on-surface-variant); }
+  .turno b { color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+  .spacer { flex: 1; }
+  .state { display: inline-flex; align-items: center; gap: var(--space-sm); font-size: .6875rem; line-height: .875rem; letter-spacing: .04em; font-weight: 700; text-transform: uppercase; color: var(--color-tertiary); }
+  .state i { width: .375rem; height: .375rem; border-radius: var(--radius-full); background: var(--color-tertiary); }
+  .ghost { min-height: var(--size-touch-min); padding: 0 var(--space-md); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md); background: transparent; font-size: .75rem; font-weight: 600; letter-spacing: .02em; cursor: pointer; }
+  .ghost:hover { background: var(--color-surface-container); }
+
+  main { display: grid; grid-template-columns: 30rem 1fr; min-height: 0; }
+
+  /* ── Conteo ───────────────────────────────────────────────────────── */
+  .conteo { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; padding: var(--space-lg) var(--page-margin-desktop); border-right: 1px solid var(--color-outline-variant); }
+  .conteo h1 { font-family: var(--font-sans); font-size: 2rem; line-height: 2.5rem; letter-spacing: -.02em; font-weight: 700; margin: 0; }
+  .conteo .lead { margin: var(--space-xs) 0 var(--space-md); font-size: .8125rem; line-height: 1.25rem; color: var(--color-on-surface-variant); }
+
+  .ct { display: grid; grid-template-columns: 1fr auto 6.5rem; align-items: center; gap: var(--space-md); padding: var(--space-xs) 0; border-bottom: 1px solid var(--color-outline-variant); }
+  .ct .lbl { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .ct .lbl small { font-family: var(--font-ui); font-size: .625rem; line-height: .875rem; letter-spacing: .04em; font-weight: 700; text-transform: uppercase; color: var(--color-on-surface-variant); margin-left: var(--space-sm); }
+  .ct .stp { display: flex; align-items: center; gap: 2px; }
+  .ct .stp button { width: 2rem; height: 2rem; display: grid; place-items: center; border: 1px solid var(--color-outline-variant); border-radius: var(--radius-sm); background: var(--color-surface-container-low); cursor: pointer; font-weight: 700; }
+  .ct .stp button:hover { background: var(--color-surface-container-high); }
+  .ct output { min-width: 2.5rem; text-align: center; font-family: var(--font-sans); font-size: 1.125rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ct .sub { text-align: right; font-size: .875rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--color-on-surface-variant); }
+  .ct .sub b { color: var(--color-on-surface); }
+  .ct.zero .sub { opacity: .35; }
+
+  .ct-total { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md); padding: var(--space-md) 0 0; border-top: 2px solid var(--color-on-surface); margin-top: var(--space-sm); }
+  .ct-total dt { font-size: .75rem; letter-spacing: .02em; font-weight: 600; text-transform: uppercase; }
+  .ct-total dd { margin: 0; font-family: var(--font-sans); font-size: 1.75rem; line-height: 2rem; letter-spacing: -.02em; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .scroll { overflow: auto; min-height: 0; }
+
+  /* ── Ticket Z ─────────────────────────────────────────────────────── */
+  .stage {
+    display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: var(--space-lg); justify-items: center;
+    padding: var(--space-lg) var(--page-margin-desktop);
+    background:
+      radial-gradient(70% 60% at 50% 0%, rgb(195 192 255 / 7%), transparent 70%),
+      var(--color-surface-container-lowest);
+    min-height: 0;
+  }
+
+  .paper {
+    position: relative; width: 24rem;
+    display: grid; grid-template-rows: minmax(0, 1fr) auto;
+    max-height: 100%; min-height: 0;
+  }
+  .sheet {
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    background: var(--color-inverse-surface); color: var(--color-inverse-on-surface);
+    box-shadow: var(--shadow-overlay);
+    min-height: 0;
+  }
+  /* borde inferior festoneado: dientes de papel sobre el fondo oscuro */
+  .teeth {
+    height: .5rem;
+    background: radial-gradient(circle at .5rem 0, var(--color-inverse-surface) .48rem, transparent .5rem) 0 0 / 1rem .5rem repeat-x;
+  }
+  .paper-head { padding: var(--space-md) var(--space-md) var(--space-sm); text-align: center; border-bottom: 1px dashed rgb(40 48 68 / 35%); }
+  .paper-head .logo { width: 2.25rem; height: 2.25rem; margin: 0 auto var(--space-sm); border-radius: var(--radius-sm); background: var(--color-inverse-on-surface); color: var(--color-inverse-surface); display: grid; place-items: center; font-family: var(--font-sans); font-weight: 700; }
+  .paper-head b { display: block; font-family: var(--font-sans); font-size: 1.0625rem; line-height: 1.5rem; letter-spacing: -.01em; }
+  .paper-head span { display: block; font-size: .75rem; line-height: 1rem; letter-spacing: .02em; opacity: .75; font-variant-numeric: tabular-nums; }
+  .paper-head .doc { margin-top: var(--space-sm); display: inline-block; font-size: .6875rem; line-height: .875rem; letter-spacing: .08em; font-weight: 700; text-transform: uppercase; padding: .125rem var(--space-sm); border: 1px solid rgb(40 48 68 / 40%); border-radius: var(--radius-sm); opacity: .85; }
+
+  .paper-body { overflow: auto; min-height: 0; padding: var(--space-sm) var(--space-lg); }
+  .zrow { display: flex; justify-content: space-between; gap: var(--space-md); padding: .1875rem 0; font-size: .8125rem; line-height: 1.125rem; font-variant-numeric: tabular-nums; }
+  .zrow span:last-child { font-weight: 600; }
+  .zsep { border-top: 1px dashed rgb(40 48 68 / 35%); margin: var(--space-sm) 0; }
+  .zsec { font-size: .625rem; line-height: .875rem; letter-spacing: .08em; font-weight: 700; text-transform: uppercase; opacity: .6; padding-bottom: var(--space-xs); }
+
+  .paper-foot { padding: var(--space-sm) var(--space-lg) var(--space-md); border-top: 1px dashed rgb(40 48 68 / 35%); text-align: center; }
+  .difbig { display: grid; gap: 2px; padding-bottom: var(--space-sm); }
+  .difbig .lbl { font-size: .625rem; line-height: .875rem; letter-spacing: .08em; font-weight: 700; text-transform: uppercase; opacity: .7; }
+  .difbig .v { font-family: var(--font-sans); font-size: 1.75rem; line-height: 2rem; letter-spacing: -.02em; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .difbig .hint { font-size: .6875rem; line-height: .875rem; opacity: .7; }
+  .legal { margin-top: var(--space-sm); font-size: .625rem; line-height: .875rem; letter-spacing: .02em; opacity: .6; }
+
+  .actions { display: flex; gap: var(--space-md); align-items: center; width: 24rem; }
+  .btn-main {
+    flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--space-md);
+    min-width: 0; min-height: 4.25rem; padding: 0 var(--space-md);
+    border: 0; border-radius: var(--radius-md);
+    background: var(--color-tertiary); color: var(--color-on-tertiary);
+    font-family: var(--font-sans); font-size: .875rem; font-weight: 700; letter-spacing: .02em; cursor: pointer; white-space: nowrap;
+    transition: transform 120ms cubic-bezier(.215,.61,.355,1), filter 150ms ease;
+  }
+  .btn-main:hover { filter: brightness(1.06); }
+  .btn-main:active { transform: scale(.985); }
+  .btn-main .v { font-size: 1.125rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .btn-sub { min-height: 4.25rem; padding: 0 var(--space-md); min-width: 5.5rem; border: 1px solid var(--color-outline); border-radius: var(--radius-md); background: transparent; font-size: .75rem; font-weight: 700; letter-spacing: .04em; cursor: pointer; }
+  .btn-sub:hover { background: var(--color-surface-container); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn-main { transition: none; }
+    .btn-main:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><b>AlToke</b><span>Kiosco Don Julio</span></div>
+  <div class="divider" aria-hidden="true"></div>
+  <div class="turno">Turno <b>08:14</b> · 34 ventas · terminal 1</div>
+  <div class="spacer"></div>
+  <span class="state"><i aria-hidden="true"></i> Guardando local</span>
+  <button class="ghost" type="button">Volver a vender</button>
+</header>
+
+<main>
+  <section class="conteo" aria-labelledby="conteo-title">
+    <div>
+      <h1 id="conteo-title">Arqueo</h1>
+      <p class="lead">Cargá lo que hay en el cajón, denominación por denominación.</p>
+    </div>
+
+    <div class="scroll" id="list"></div>
+
+    <dl class="ct-total">
+      <dt>Contado</dt>
+      <dd class="num" id="contado">$ 112.400,00</dd>
+    </dl>
+  </section>
+
+  <section class="stage" aria-labelledby="z-title">
+    <h2 id="z-title" style="position:absolute;left:-9999px">Ticket de cierre</h2>
+
+    <div class="paper">
+      <div class="sheet">
+      <div class="paper-head">
+        <div class="logo" aria-hidden="true">K</div>
+        <b>Kiosco Don Julio</b>
+        <span>Av. San Martín 1240 · Salta Capital</span>
+        <div class="doc">Cierre de turno · Z</div>
+      </div>
+
+      <div class="paper-body">
+        <div class="zrow"><span>Inicio</span><span class="num">22/11/2026 08:14</span></div>
+        <div class="zrow"><span>Cierre</span><span class="num">22/11/2026 14:32</span></div>
+        <div class="zrow"><span>Terminal</span><span>1</span></div>
+        <div class="zrow"><span>Tickets</span><span class="num">34</span></div>
+
+        <div class="zsep"></div>
+        <div class="zsec">Ventas</div>
+        <div class="zrow"><span>Total vendido</span><span class="num">$ 128.400,00</span></div>
+        <div class="zrow"><span>Efectivo</span><span class="num">$ 92.400,00</span></div>
+        <div class="zrow"><span>QR y transferencia</span><span class="num">$ 36.000,00</span></div>
+
+        <div class="zsep"></div>
+        <div class="zsec">Caja</div>
+        <div class="zrow"><span>Fondo inicial</span><span class="num">$ 20.000,00</span></div>
+        <div class="zrow"><span>Efectivo esperado</span><span class="num">$ 112.400,00</span></div>
+        <div class="zrow"><span>Efectivo contado</span><span class="num" id="contado-z">$ 112.400,00</span></div>
+
+        <div class="zsep"></div>
+        <div class="zsec">Arqueo por denominación</div>
+        <div id="arqueo-print"></div>
+      </div>
+
+      <div class="paper-foot">
+        <div class="difbig">
+          <span class="lbl" id="dif-lbl">Cuadrado</span>
+          <span class="v num" id="dif-v">$ 0,00</span>
+          <span class="hint" id="dif-hint">La caja coincide con lo esperado.</span>
+        </div>
+        <div class="legal">TICKET INTERNO — no es comprobante fiscal válido.</div>
+      </div>
+      </div>
+      <div class="teeth" aria-hidden="true"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-main" type="button" id="btn-cerrar">
+        <span>Cerrar turno</span>
+      </button>
+      <button class="btn-sub" type="button">IMPRIMIR Z</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  const fmt = n => '$ ' + Math.abs(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const BILLETES = [10000, 2000, 1000, 500, 200, 100];
+  const MONEDAS = [100, 50, 10];
+  const conteo = new Map([[10000, 6], [2000, 18], [1000, 12], [500, 4], [200, 5], [100, 4], [100, 6], [50, 8], [10, 0]]);
+  // Ojo: 100 es billete y moneda; el mapa usa la denominación como clave, así que el
+  // conteo vivo es la suma de filas. Este artboard muestra el caso cuadrado.
+  const FILAS = [
+    { d: 10000, tipo: 'billete', q: 6 }, { d: 2000, tipo: 'billete', q: 18 },
+    { d: 1000, tipo: 'billete', q: 12 }, { d: 500, tipo: 'billete', q: 4 },
+    { d: 200, tipo: 'billete', q: 5 }, { d: 100, tipo: 'billete', q: 4 },
+    { d: 100, tipo: 'moneda', q: 6 }, { d: 50, tipo: 'moneda', q: 8 },
+    { d: 10, tipo: 'moneda', q: 0 },
+  ];
+  const ESPERADO = 112400;
+
+  const list = document.getElementById('list');
+
+  function renderList() {
+    list.innerHTML = '';
+    FILAS.forEach((f, i) => {
+      const el = document.createElement('div');
+      el.className = 'ct' + (f.q === 0 ? ' zero' : '');
+      el.innerHTML = `
+        <span class="lbl num">${fmt(f.d)}<small>${f.tipo}</small></span>
+        <span class="stp">
+          <button type="button" data-i="${i}" data-step="-1" aria-label="Quitar un ${fmt(f.d)}">−</button>
+          <output class="num">${f.q}</output>
+          <button type="button" data-i="${i}" data-step="1" aria-label="Agregar un ${fmt(f.d)}">+</button>
+        </span>
+        <span class="sub">${f.q ? '<b class="num">' + fmt(f.q * f.d) + '</b>' : '—'}</span>`;
+      list.appendChild(el);
+    });
+  }
+
+  function update() {
+    const contado = FILAS.reduce((a, f) => a + f.d * f.q, 0);
+    const dif = contado - ESPERADO;
+    document.getElementById('contado').textContent = fmt(contado);
+    document.getElementById('contado-z').textContent = fmt(contado);
+
+    const lbl = document.getElementById('dif-lbl');
+    const v = document.getElementById('dif-v');
+    const hint = document.getElementById('dif-hint');
+    const btn = document.getElementById('btn-cerrar');
+
+    if (dif === 0) {
+      lbl.textContent = 'Cuadrado';
+      v.textContent = '$ 0,00';
+      hint.textContent = 'La caja coincide con lo esperado.';
+      btn.querySelector('span').textContent = 'Cerrar turno';
+    } else {
+      lbl.textContent = dif < 0 ? 'Faltante' : 'Sobrante';
+      v.textContent = fmt(dif);
+      hint.textContent = dif < 0 ? 'Hay menos efectivo que lo esperado.' : 'Hay más efectivo que lo esperado.';
+      btn.querySelector('span').textContent = dif < 0 ? 'Cerrar con faltante' : 'Cerrar con sobrante';
+    }
+
+    const print = document.getElementById('arqueo-print');
+    print.innerHTML = '';
+    const activas = FILAS.filter(f => f.q > 0);
+    if (!activas.length) {
+      print.innerHTML = '<div class="zrow"><span>Sin conteo cargado</span><span>—</span></div>';
+      return;
+    }
+    for (const f of activas) {
+      const row = document.createElement('div');
+      row.className = 'zrow';
+      row.innerHTML = `<span class="num">${String(f.q).padStart(2, '0')} × ${fmt(f.d)}</span><span class="num">${fmt(f.q * f.d)}</span>`;
+      print.appendChild(row);
+    }
+  }
+
+  list.addEventListener('click', e => {
+    const b = e.target.closest('[data-step]');
+    if (!b) return;
+    const i = Number(b.dataset.i);
+    FILAS[i].q = Math.max(0, FILAS[i].q + Number(b.dataset.step));
+    renderList(); update();
+  });
+
+  renderList();
+  update();
+</script>
+</body>
+</html>

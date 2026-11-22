@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280, initial-scale=1">
+<title>AlToke — 04 Cierre de caja · bandeja</title>
+<style>
+  /* Tokens: subconjunto exacto de packages/ui/src/tokens.css (claro). */
+  :root {
+    color-scheme: light;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    --space-xs: .25rem; --space-sm: .5rem; --space-md: 1rem;
+    --space-lg: 1.5rem; --space-xl: 2.5rem;
+    --page-margin-desktop: 2rem;
+
+    --radius-xs: .125rem; --radius-sm: .25rem; --radius-md: .5rem;
+    --radius-lg: .75rem; --radius-full: 9999px;
+
+    --size-touch-min: 2.75rem; --size-control: 3rem; --size-header: 4rem;
+    --shadow-panel: 0 1px 8px rgb(0 0 0 / 4%);
+    --focus-ring-width: 2px;
+
+    --brand-primary: #4d44e3; --brand-accent: #005049;
+    --brand-surface: #fbf8ff; --brand-text: #1b1b21;
+
+    --color-primary: var(--brand-primary); --color-on-primary: #ffffff;
+    --color-primary-container: #e2dfff; --color-on-primary-container: #0f0069;
+    --color-secondary: var(--brand-accent); --color-on-secondary: #ffffff;
+    --color-secondary-container: #89f5e7; --color-on-secondary-container: #00201d;
+    --color-tertiary: #005236; --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #6ffbbe; --color-on-tertiary-container: #002113;
+    --color-error: #93000a; --color-on-error: #ffffff;
+    --color-error-container: #ffdad6; --color-on-error-container: #690005;
+    --color-surface: var(--brand-surface);
+    --color-surface-dim: #dad9e1; --color-surface-bright: #fbf8ff;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f5f2fa;
+    --color-surface-container: #efecf4;
+    --color-surface-container-high: #e9e7ee;
+    --color-surface-container-highest: #e4e1e9;
+    --color-on-surface: var(--brand-text);
+    --color-on-surface-variant: #464555;
+    --color-outline: #777586; --color-outline-variant: #c7c4d8;
+    --color-placeholder: var(--color-on-surface-variant);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--color-surface-container-low);
+    color: var(--color-on-surface);
+    font-family: var(--font-ui); font-size: .9375rem; line-height: 1.5rem;
+    height: 800px; overflow: hidden;
+    display: grid; grid-template-rows: var(--size-header) 1fr;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; }
+  :where(:focus-visible) { outline: var(--focus-ring-width) solid var(--color-primary); outline-offset: 2px; }
+
+  header {
+    display: flex; align-items: center; gap: var(--space-md);
+    padding: 0 var(--page-margin-desktop);
+    background: var(--color-surface-container-lowest);
+    border-bottom: 1px solid var(--color-outline-variant);
+  }
+  .mark { width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md); background: var(--color-primary); color: var(--color-on-primary); display: grid; place-items: center; font-family: var(--font-sans); font-weight: 700; }
+  .who b { display: block; font-family: var(--font-sans); font-size: 1rem; line-height: 1.25rem; letter-spacing: -.01em; }
+  .who span { font-size: .75rem; line-height: 1rem; color: var(--color-on-surface-variant); }
+  .spacer { flex: 1; }
+  .chip { display: inline-flex; align-items: center; gap: var(--space-sm); min-height: var(--size-touch-min); padding: 0 var(--space-md); border-radius: var(--radius-full); background: var(--color-surface-container-high); color: var(--color-on-surface-variant); font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
+  .chip i { width: .5rem; height: .5rem; border-radius: var(--radius-full); background: var(--color-tertiary); }
+  .ghost { min-height: var(--size-touch-min); padding: 0 var(--space-md); border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md); background: transparent; font-size: .75rem; font-weight: 600; letter-spacing: .02em; cursor: pointer; }
+  .ghost:hover { background: var(--color-surface-container); }
+
+  main { display: grid; grid-template-columns: 1fr 26rem; min-height: 0; }
+
+  /* ── Arqueo ───────────────────────────────────────────────────────── */
+  .arqueo { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-height: 0; padding: var(--space-lg) var(--page-margin-desktop); }
+  .head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-lg); padding-bottom: var(--space-md); }
+  h1 { font-family: var(--font-sans); font-size: 2rem; line-height: 2.5rem; letter-spacing: -.02em; font-weight: 700; margin: 0; }
+  .head p { margin: var(--space-xs) 0 0; font-size: .8125rem; line-height: 1.25rem; color: var(--color-on-surface-variant); }
+  .head .t { font-size: .75rem; line-height: 1rem; color: var(--color-on-surface-variant); text-align: right; }
+  .head .t b { display: block; font-family: var(--font-sans); font-size: 1.25rem; line-height: 1.75rem; letter-spacing: -.01em; color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+
+  .groups { overflow: auto; min-height: 0; padding-right: var(--space-xs);
+    -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 2rem), transparent); }
+  .group-title {
+    display: flex; align-items: center; gap: var(--space-sm);
+    font-size: .6875rem; line-height: .875rem; letter-spacing: .06em; font-weight: 700; text-transform: uppercase;
+    color: var(--color-on-surface-variant);
+    padding: var(--space-sm) 0 var(--space-xs);
+    position: sticky; top: 0; background: var(--color-surface-container-low);
+  }
+  .group-title span { flex: 1; height: 1px; background: var(--color-outline-variant); }
+
+  .denom {
+    display: grid; grid-template-columns: 8rem auto 1fr 8.5rem; align-items: center;
+    gap: var(--space-md);
+    padding: var(--space-xs) var(--space-md);
+    margin-bottom: 0;
+    background: var(--color-surface-container-lowest);
+    border: 1px solid var(--color-outline-variant);
+    border-radius: var(--radius-md);
+  }
+  .denom .lbl { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5rem; letter-spacing: -.01em; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .denom .lbl small { display: block; font-family: var(--font-ui); font-size: .6875rem; line-height: .875rem; letter-spacing: .04em; font-weight: 600; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .stepper { display: flex; align-items: center; gap: var(--space-sm); }
+  .stepper button {
+    width: 2.75rem; height: 2.75rem; display: grid; place-items: center;
+    border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md);
+    background: var(--color-surface-container-low); cursor: pointer;
+    font-size: 1.25rem; line-height: 1; font-weight: 700;
+    transition: background-color 110ms ease, transform 110ms cubic-bezier(.215,.61,.355,1);
+  }
+  .stepper button:hover { background: var(--color-surface-container-high); }
+  .stepper button:active { transform: scale(.95); background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .stepper output { min-width: 3rem; text-align: center; font-family: var(--font-sans); font-size: 1.375rem; line-height: 1.75rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.015em; }
+  .denom .sub { text-align: right; font-size: .9375rem; font-weight: 600; font-variant-numeric: tabular-nums;
+    white-space: nowrap; color: var(--color-on-surface-variant); }
+  .denom .sub b { color: var(--color-on-surface); }
+  .denom.zero .sub { opacity: .45; }
+  .denom.zero .stepper output { color: var(--color-on-surface-variant); }
+
+  .foot { display: flex; align-items: center; gap: var(--space-lg); padding-top: var(--space-md); border-top: 1px solid var(--color-outline-variant); }
+  .foot .txt { font-size: .8125rem; line-height: 1.25rem; color: var(--color-on-surface-variant); }
+  .foot .txt b { color: var(--color-on-surface); }
+  .foot .link { margin-left: auto; background: none; border: 0; padding: var(--space-sm); cursor: pointer; font-size: .8125rem; font-weight: 600; color: var(--color-primary); }
+  .foot .link:hover { text-decoration: underline; }
+
+  /* ── Resumen ──────────────────────────────────────────────────────── */
+  .resumen {
+    display: grid; grid-template-rows: auto auto 1fr; gap: var(--space-md);
+    padding: var(--space-lg);
+    background: var(--color-surface-container-lowest);
+    border-left: 1px solid var(--color-outline-variant);
+    min-height: 0;
+  }
+  .resumen > div:last-child { display: grid; align-content: space-between; gap: var(--space-md); }
+  .resumen h2 { font-family: var(--font-sans); font-size: 1.25rem; line-height: 1.75rem; letter-spacing: -.01em; font-weight: 600; margin: 0; }
+  .resumen .sub { margin: var(--space-xs) 0 0; font-size: .75rem; line-height: 1rem; color: var(--color-on-surface-variant); }
+
+  dl.cifras { margin: 0; display: grid; gap: 0; align-content: start; }
+  .cifra { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-md); padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-outline-variant); }
+  .cifra dt { font-size: .8125rem; line-height: 1.25rem; color: var(--color-on-surface-variant); }
+  .cifra dd { margin: 0; font-size: .9375rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cifra.big dd { font-family: var(--font-sans); font-size: 1.5rem; line-height: 2rem; letter-spacing: -.015em; font-weight: 700; }
+  .cifra.big dt { font-size: .75rem; letter-spacing: .02em; font-weight: 600; text-transform: uppercase; }
+
+  .dif {
+    display: grid; gap: var(--space-xs);
+    padding: var(--space-md);
+    border-radius: var(--radius-lg);
+    background: var(--color-error-container); color: var(--color-on-error-container);
+    border: 1px solid var(--color-error);
+  }
+  .dif .lbl { display: flex; align-items: center; gap: var(--space-sm); font-size: .6875rem; line-height: .875rem; letter-spacing: .06em; font-weight: 700; text-transform: uppercase; }
+  .dif .v { font-family: var(--font-sans); font-size: 2rem; line-height: 2.5rem; letter-spacing: -.02em; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .dif .hint { font-size: .75rem; line-height: 1rem; }
+  .dif.ok { background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); border-color: var(--color-tertiary); }
+
+  .close { display: grid; gap: var(--space-sm); }
+  .btn-main {
+    display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
+    min-height: 4rem; border: 0; border-radius: var(--radius-lg);
+    background: var(--color-primary); color: var(--color-on-primary);
+    font-size: .875rem; font-weight: 700; letter-spacing: .04em; cursor: pointer;
+    transition: transform 130ms cubic-bezier(.215,.61,.355,1), background-color 150ms ease;
+  }
+  .btn-main:hover { background: var(--color-on-primary-container); }
+  .btn-main:active { transform: scale(.985); }
+  .btn-sub {
+    display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
+    min-height: var(--size-control); border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
+    background: transparent; font-size: .8125rem; font-weight: 600; cursor: pointer;
+  }
+  .btn-sub:hover { background: var(--color-surface-container); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stepper button, .btn-main { transition: none; }
+    .stepper button:active, .btn-main:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark" aria-hidden="true">A</div>
+  <div class="who">
+    <b>Kiosco Don Julio</b>
+    <span>AlToke · sucursal 1 · terminal 1</span>
+  </div>
+  <div class="spacer"></div>
+  <span class="chip"><i aria-hidden="true"></i> Turno 08:14 · 34 ventas</span>
+  <button class="ghost" type="button">Volver a vender</button>
+</header>
+
+<main>
+  <section class="arqueo" aria-labelledby="arq-title">
+    <div class="head">
+      <div>
+        <h1 id="arq-title">Cerrar caja</h1>
+        <p>Contá el efectivo del cajón. El sistema compara contra lo que debería haber.</p>
+      </div>
+      <div class="t">
+        Efectivo contado
+        <b class="num" id="contado-head">$ 111.700,00</b>
+      </div>
+    </div>
+
+    <div class="groups" id="groups"></div>
+
+    <div class="foot">
+      <div class="txt">
+        Denominaciones del libro de caja. Cargá lo que hay, no lo que esperás.
+      </div>
+      <button class="link" type="button">Vaciar conteo</button>
+    </div>
+  </section>
+
+  <section class="resumen" aria-labelledby="res-title">
+    <div>
+      <h2 id="res-title">Resumen del turno</h2>
+      <p class="sub">08:14 → ahora · terminal 1 · 34 tickets</p>
+    </div>
+
+    <dl class="cifras">
+      <div class="cifra"><dt>Fondo inicial</dt><dd class="num">$ 20.000,00</dd></div>
+      <div class="cifra"><dt>Ventas del turno</dt><dd class="num">$ 128.400,00</dd></div>
+      <div class="cifra"><dt>Cobrado en efectivo</dt><dd class="num">$ 92.400,00</dd></div>
+      <div class="cifra"><dt>Cobrado con QR y transferencia</dt><dd class="num">$ 36.000,00</dd></div>
+      <div class="cifra big"><dt>Efectivo esperado</dt><dd class="num">$ 112.400,00</dd></div>
+      <div class="cifra big"><dt>Efectivo contado</dt><dd class="num" id="contado">$ 111.700,00</dd></div>
+    </dl>
+
+    <div>
+      <div class="dif" id="dif" role="status">
+        <span class="lbl">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M12 8v5"/><path d="M12 16.5v.5"/><circle cx="12" cy="12" r="9"/></svg>
+          Faltante
+        </span>
+        <span class="v num" id="dif-v">$ 700,00</span>
+        <span class="hint" id="dif-hint">Hay $ 700,00 menos que lo esperado. Revisá el conteo antes de cerrar.</span>
+      </div>
+
+      <div class="close" style="margin-top:var(--space-md)">
+        <button class="btn-main" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+          CERRAR TURNO CON FALTANTE
+        </button>
+        <button class="btn-sub" type="button">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="6" y="13" width="12" height="8" rx="1"/><path d="M6 17H4V9h16v8h-2"/></svg>
+          Imprimir resumen de cierre
+        </button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const fmt = n => '$ ' + Math.abs(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const BILLETES = [10000, 2000, 1000, 500, 200, 100];
+  const MONEDAS = [100, 50, 10];
+  // El billete y la moneda de $100 comparten denominación: la clave es la fila, no el valor.
+  const FILAS = [
+    { d: 10000, tipo: 'billete', q: 6 }, { d: 2000, tipo: 'billete', q: 18 },
+    { d: 1000, tipo: 'billete', q: 12 }, { d: 500, tipo: 'billete', q: 4 },
+    { d: 200, tipo: 'billete', q: 5 }, { d: 100, tipo: 'billete', q: 2 },
+    { d: 100, tipo: 'moneda', q: 3 }, { d: 50, tipo: 'moneda', q: 4 },
+    { d: 10, tipo: 'moneda', q: 0 },
+  ];
+  const ESPERADO = 112400;
+
+  const groups = document.getElementById('groups');
+
+  function row(f, i) {
+    const el = document.createElement('div');
+    el.className = 'denom' + (f.q === 0 ? ' zero' : '');
+    el.innerHTML = `
+      <span class="lbl num">${fmt(f.d)}<small>${f.tipo}</small></span>
+      <span class="stepper">
+        <button type="button" data-i="${i}" data-step="-1" aria-label="Quitar un ${fmt(f.d)}">−</button>
+        <output class="num">${f.q}</output>
+        <button type="button" data-i="${i}" data-step="1" aria-label="Agregar un ${fmt(f.d)}">+</button>
+      </span>
+      <span></span>
+      <span class="sub">${f.q ? '<b class="num">' + fmt(f.q * f.d) + '</b>' : '—'}</span>`;
+    return el;
+  }
+
+  function renderRows() {
+    groups.innerHTML = '';
+    const tb = document.createElement('div');
+    tb.className = 'group-title';
+    tb.innerHTML = 'Billetes <span></span>';
+    groups.appendChild(tb);
+    FILAS.forEach((f, i) => { if (f.tipo === 'billete') groups.appendChild(row(f, i)); });
+    const tm = document.createElement('div');
+    tm.className = 'group-title';
+    tm.innerHTML = 'Monedas <span></span>';
+    groups.appendChild(tm);
+    FILAS.forEach((f, i) => { if (f.tipo === 'moneda') groups.appendChild(row(f, i)); });
+  }
+
+  function update() {
+    const contado = FILAS.reduce((a, f) => a + f.d * f.q, 0);
+    const dif = contado - ESPERADO;
+
+    document.getElementById('contado').textContent = fmt(contado);
+    document.getElementById('contado-head').textContent = fmt(contado);
+    const box = document.getElementById('dif');
+    const v = document.getElementById('dif-v');
+    const hint = document.getElementById('dif-hint');
+    const mainBtn = document.querySelector('.btn-main');
+
+    if (dif === 0) {
+      box.className = 'dif ok';
+      box.querySelector('.lbl').lastChild.textContent = ' Cuadrado';
+      v.textContent = '$ 0,00';
+      hint.textContent = 'La caja cierra exacta contra lo esperado.';
+      mainBtn.textContent = 'CERRAR TURNO';
+    } else {
+      box.className = 'dif';
+      box.querySelector('.lbl').lastChild.textContent = dif < 0 ? ' Faltante' : ' Sobrante';
+      v.textContent = fmt(dif);
+      hint.textContent = dif < 0
+        ? `Hay ${fmt(dif)} menos que lo esperado. Revisá el conteo antes de cerrar.`
+        : `Hay ${fmt(dif)} más que lo esperado. Revisá el conteo antes de cerrar.`;
+      mainBtn.textContent = `CERRAR TURNO CON ${dif < 0 ? 'FALTANTE' : 'SOBRANTE'}`;
+    }
+  }
+
+  groups.addEventListener('click', e => {
+    const b = e.target.closest('[data-step]');
+    if (!b) return;
+    const i = Number(b.dataset.i);
+    FILAS[i].q = Math.max(0, FILAS[i].q + Number(b.dataset.step));
+    renderRows();
+    update();
+  });
+
+  document.querySelector('.foot .link').addEventListener('click', () => {
+    for (const f of FILAS) f.q = 0;
+    renderRows(); update();
+  });
+
+  renderRows();
+  update();
+</script>
+</body>
+</html>

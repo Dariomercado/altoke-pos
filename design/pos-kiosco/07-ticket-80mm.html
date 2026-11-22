@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280, initial-scale=1">
+<title>AlToke — 07 Ticket 80 mm · bandeja</title>
+<style>
+  /* Tokens: subconjunto exacto de packages/ui/src/tokens.css (claro). */
+  :root {
+    color-scheme: light;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    --space-xs: .25rem; --space-sm: .5rem; --space-md: 1rem;
+    --space-lg: 1.5rem; --space-xl: 2.5rem;
+    --page-margin-desktop: 2rem;
+
+    --radius-xs: .125rem; --radius-sm: .25rem; --radius-md: .5rem;
+    --radius-lg: .75rem; --radius-full: 9999px;
+
+    --size-touch-min: 2.75rem; --size-control: 3rem; --size-header: 4rem;
+    --shadow-panel: 0 1px 8px rgb(0 0 0 / 4%);
+    --shadow-overlay: 0 20px 25px -5px rgb(0 0 0 / 50%), 0 8px 10px -6px rgb(79 70 229 / 12%);
+    --focus-ring-width: 2px;
+
+    --brand-primary: #4d44e3; --brand-accent: #005049;
+    --brand-surface: #fbf8ff; --brand-text: #1b1b21;
+
+    --color-primary: var(--brand-primary); --color-on-primary: #ffffff;
+    --color-primary-container: #e2dfff; --color-on-primary-container: #0f0069;
+    --color-secondary: var(--brand-accent); --color-on-secondary: #ffffff;
+    --color-secondary-container: #89f5e7; --color-on-secondary-container: #00201d;
+    --color-tertiary: #005236; --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #6ffbbe; --color-on-tertiary-container: #002113;
+    --color-error: #93000a; --color-on-error: #ffffff;
+    --color-error-container: #ffdad6; --color-on-error-container: #690005;
+    --color-surface: var(--brand-surface);
+    --color-surface-dim: #dad9e1; --color-surface-bright: #fbf8ff;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f5f2fa;
+    --color-surface-container: #efecf4;
+    --color-surface-container-high: #e9e7ee;
+    --color-surface-container-highest: #e4e1e9;
+    --color-on-surface: var(--brand-text);
+    --color-on-surface-variant: #464555;
+    --color-outline: #777586; --color-outline-variant: #c7c4d8;
+    --color-placeholder: var(--color-on-surface-variant);
+    --color-inverse-surface: #0b1326;
+    --color-inverse-on-surface: #dae2fd;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--color-surface-container-low);
+    color: var(--color-on-surface);
+    font-family: var(--font-ui); font-size: .9375rem; line-height: 1.5rem;
+    height: 800px; overflow: hidden;
+    display: grid; grid-template-rows: var(--size-header) 1fr;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; }
+  :where(:focus-visible) { outline: var(--focus-ring-width) solid var(--color-primary); outline-offset: 2px; }
+
+  header {
+    display: flex; align-items: center; gap: var(--space-md);
+    padding: 0 var(--page-margin-desktop);
+    background: var(--color-surface-container-lowest);
+    border-bottom: 1px solid var(--color-outline-variant);
+  }
+  .mark { width: 2.25rem; height: 2.25rem; border-radius: var(--radius-md); background: var(--color-primary); color: var(--color-on-primary); display: grid; place-items: center; font-family: var(--font-sans); font-weight: 700; }
+  .who b { display: block; font-family: var(--font-sans); font-size: 1rem; line-height: 1.25rem; letter-spacing: -.01em; }
+  .who span { font-size: .75rem; line-height: 1rem; color: var(--color-on-surface-variant); }
+  .spacer { flex: 1; }
+  .chip { display: inline-flex; align-items: center; gap: var(--space-sm); min-height: var(--size-touch-min); padding: 0 var(--space-md); border-radius: var(--radius-full); background: var(--color-tertiary-container); color: var(--color-on-tertiary-container); font-size: .75rem; font-weight: 600; letter-spacing: .02em; }
+  .chip i { width: .5rem; height: .5rem; border-radius: var(--radius-full); background: var(--color-tertiary); }
+
+  main { display: grid; grid-template-columns: 1fr auto; min-height: 0; }
+
+  /* ── Confirmación ─────────────────────────────────────────────────── */
+  .done { display: grid; grid-template-rows: auto 1fr auto; padding: var(--space-xl) var(--page-margin-desktop) var(--space-lg); }
+  .check {
+    width: 3.5rem; height: 3.5rem; border-radius: var(--radius-full);
+    background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);
+    display: grid; place-items: center; margin-bottom: var(--space-md);
+  }
+  h1 { font-family: var(--font-sans); font-size: 2.5rem; line-height: 3rem; letter-spacing: -.03em; font-weight: 700; margin: 0; }
+  .done p.lead { margin: var(--space-sm) 0 0; font-size: .9375rem; line-height: 1.5rem; color: var(--color-on-surface-variant); max-width: 34ch; }
+
+  .vuelto-big {
+    display: inline-grid; gap: var(--space-xs);
+    margin-top: var(--space-lg); padding: var(--space-md) var(--space-lg);
+    border-radius: var(--radius-lg);
+    background: var(--color-tertiary-container); color: var(--color-on-tertiary-container);
+    border: 1px solid var(--color-tertiary);
+  }
+  .vuelto-big span { font-size: .6875rem; line-height: .875rem; letter-spacing: .06em; font-weight: 700; text-transform: uppercase; }
+  .vuelto-big b { font-family: var(--font-sans); font-size: 3rem; line-height: 3.5rem; letter-spacing: -.03em; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  .resumen-min { display: flex; gap: var(--space-xl); margin-top: var(--space-lg); }
+  .resumen-min div { display: grid; gap: 2px; }
+  .resumen-min span { font-size: .6875rem; line-height: .875rem; letter-spacing: .06em; font-weight: 700; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .resumen-min b { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .acciones { display: flex; gap: var(--space-md); align-items: center; }
+  .btn-main {
+    display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
+    min-width: 18rem; min-height: 4rem; padding: 0 var(--space-lg);
+    border: 0; border-radius: var(--radius-lg);
+    background: var(--color-primary); color: var(--color-on-primary);
+    font-size: .875rem; font-weight: 700; letter-spacing: .04em; cursor: pointer;
+    transition: transform 130ms cubic-bezier(.215,.61,.355,1), background-color 150ms ease;
+  }
+  .btn-main:hover { background: var(--color-on-primary-container); }
+  .btn-main:active { transform: scale(.985); }
+  .btn-sub {
+    display: flex; align-items: center; justify-content: center; gap: var(--space-sm);
+    min-height: 4rem; padding: 0 var(--space-lg);
+    border: 1px solid var(--color-outline); border-radius: var(--radius-lg);
+    background: transparent; font-size: .8125rem; font-weight: 600; cursor: pointer;
+  }
+  .btn-sub:hover { background: var(--color-surface-container); }
+
+  /* ── El ticket de 80 mm ───────────────────────────────────────────── */
+  .stage {
+    display: grid; align-content: center; justify-items: center; gap: var(--space-md);
+    padding: var(--space-lg) var(--page-margin-desktop);
+    background: var(--color-surface-container);
+    border-left: 1px solid var(--color-outline-variant);
+  }
+  .stage .etq { font-size: .6875rem; line-height: .875rem; letter-spacing: .06em; font-weight: 700; text-transform: uppercase; color: var(--color-on-surface-variant); }
+
+  .ticket { width: 302px; }   /* 80 mm de papel */
+  .paper {
+    /* 72 mm útiles: 80 mm menos los márgenes del cabezal térmico */
+    width: 302px; padding: 14px; background: var(--color-surface-container-lowest);
+    color: var(--brand-text);
+    box-shadow: var(--shadow-panel);
+    font-family: var(--font-ui); font-size: 11px; line-height: 15px;
+  }
+  .teeth {
+    width: 302px; height: 6px;
+    background: radial-gradient(circle at 5px 0, var(--color-surface-container-lowest) 4.5px, transparent 5px) 0 0 / 10px 6px repeat-x;
+  }
+
+  .t-head { text-align: center; padding-bottom: 8px; }
+  .t-head .logo { width: 26px; height: 26px; margin: 0 auto 6px; border-radius: var(--radius-xs); background: var(--brand-text); color: var(--color-surface-container-lowest); display: grid; place-items: center; font-family: var(--font-sans); font-weight: 700; font-size: 13px; }
+  .t-head b { display: block; font-family: var(--font-sans); font-size: 14px; line-height: 18px; letter-spacing: -.01em; }
+  .t-head span { display: block; font-size: 10px; line-height: 14px; color: var(--color-on-surface-variant); }
+  .t-head .doc { margin-top: 4px; font-size: 10px; line-height: 12px; letter-spacing: .08em; font-weight: 700; }
+
+  .sep { border-top: 1px dashed var(--color-outline); margin: 6px 0; }
+  .trow { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+  .trow.sub { font-size: 10px; line-height: 13px; color: var(--color-on-surface-variant); }
+  .trow.total { align-items: baseline; font-family: var(--font-sans); font-weight: 700; font-size: 13px; line-height: 18px; }
+  .trow.total .v { font-size: 20px; line-height: 24px; letter-spacing: -.02em; }
+
+  .barcode { display: flex; gap: 1px; justify-content: center; height: 34px; margin: 6px 0 4px; align-items: stretch; }
+  .barcode i { display: block; background: var(--brand-text); }
+  .barcode i:nth-child(3n) { width: 2px; }
+  .barcode i:nth-child(2n) { width: 1px; }
+  .barcode i:nth-child(5n) { width: 3px; }
+  .cod { text-align: center; font-size: 10px; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+  .legal { margin-top: 6px; text-align: center; font-size: 9px; line-height: 12px; letter-spacing: .02em; color: var(--color-on-surface-variant); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn-main { transition: none; }
+    .btn-main:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="mark" aria-hidden="true">A</div>
+  <div class="who"><b>Kiosco Don Julio</b><span>AlToke · sucursal 1 · terminal 1</span></div>
+  <div class="spacer"></div>
+  <span class="chip"><i aria-hidden="true"></i> Turno 08:14 · 35 ventas</span>
+</header>
+
+<main>
+  <section class="done" aria-labelledby="done-title">
+    <div>
+      <div class="check" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+      </div>
+      <h1 id="done-title">Venta cobrada</h1>
+      <p class="lead">Quedó guardada en el libro local de esta terminal. El ticket ya salió por la impresora.</p>
+
+      <div class="vuelto-big">
+        <span>Vuelto</span>
+        <b class="num">$ 4.400,00</b>
+      </div>
+
+      <div class="resumen-min">
+        <div><span>Total</span><b class="num">$ 15.600,00</b></div>
+        <div><span>Pago</span><b>Efectivo</b></div>
+        <div><span>Recibido</span><b class="num">$ 20.000,00</b></div>
+        <div><span>Ticket</span><b class="num">#0142</b></div>
+      </div>
+    </div>
+
+    <div></div>
+
+    <div class="acciones">
+      <button class="btn-main" type="button">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        NUEVA VENTA
+      </button>
+      <button class="btn-sub" type="button">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9V3h12v6"/><rect x="6" y="13" width="12" height="8" rx="1"/><path d="M6 17H4V9h16v8h-2"/></svg>
+        Reimprimir ticket
+      </button>
+    </div>
+  </section>
+
+  <aside class="stage" aria-labelledby="ticket-title">
+    <span class="etq" id="ticket-title">Ticket de 80 mm · 72 mm útiles</span>
+
+    <div class="ticket">
+      <div class="paper">
+        <div class="t-head">
+          <div class="logo" aria-hidden="true">K</div>
+          <b>Kiosco Don Julio</b>
+          <span>Av. San Martín 1240 · Salta Capital</span>
+          <span>CUIT 20-28451907-3</span>
+          <span>Inicio de turno 08:14 · terminal 1</span>
+          <div class="doc">TICKET #0142</div>
+          <span>22/11/2026 14:32</span>
+        </div>
+
+        <div class="sep"></div>
+
+        <div class="trow"><span>Coca-Cola 500 ml</span><span>$ 6.400,00</span></div>
+        <div class="trow sub"><span>2 × $ 3.200,00</span><span></span></div>
+        <div class="trow" style="margin-top:4px"><span>Alfajor Triple Guaymallén</span><span>$ 1.800,00</span></div>
+        <div class="trow sub"><span>1 × $ 1.800,00</span><span></span></div>
+        <div class="trow" style="margin-top:4px"><span>Papas Lays Clásicas 90 g</span><span>$ 2.900,00</span></div>
+        <div class="trow sub"><span>1 × $ 2.900,00</span><span></span></div>
+        <div class="trow" style="margin-top:4px"><span>Marlboro Box 20</span><span>$ 4.500,00</span></div>
+        <div class="trow sub"><span>1 × $ 4.500,00</span><span></span></div>
+
+        <div class="sep"></div>
+
+        <div class="trow sub"><span>IVA 21% incluido</span><span>$ 2.707,44</span></div>
+        <div class="trow total"><span>TOTAL</span><span class="v num">$ 15.600,00</span></div>
+
+        <div class="sep"></div>
+
+        <div class="trow"><span>Efectivo</span><span>$ 20.000,00</span></div>
+        <div class="trow"><span>Vuelto</span><span>$ 4.400,00</span></div>
+
+        <div class="barcode" aria-hidden="true">
+          <i style="width:1px"></i><i style="width:3px"></i><i style="width:1px"></i><i style="width:2px"></i>
+          <i style="width:1px"></i><i style="width:1px"></i><i style="width:3px"></i><i style="width:1px"></i>
+          <i style="width:2px"></i><i style="width:1px"></i><i style="width:3px"></i><i style="width:2px"></i>
+          <i style="width:1px"></i><i style="width:1px"></i><i style="width:2px"></i><i style="width:3px"></i>
+          <i style="width:1px"></i><i style="width:2px"></i><i style="width:1px"></i><i style="width:3px"></i>
+          <i style="width:1px"></i><i style="width:1px"></i><i style="width:2px"></i><i style="width:1px"></i>
+          <i style="width:3px"></i><i style="width:1px"></i><i style="width:2px"></i><i style="width:2px"></i>
+        </div>
+        <div class="cod">0142</div>
+
+        <div class="legal">TICKET INTERNO — no es comprobante fiscal válido.</div>
+      </div>
+      <div class="teeth" aria-hidden="true"></div>
+    </div>
+  </aside>
+</main>
+
+</body>
+</html>

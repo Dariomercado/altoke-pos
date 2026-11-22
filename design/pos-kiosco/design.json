@@ -1,0 +1,56 @@
+{
+  "title": "POS de kiosco — dirección elegida: bandeja táctil",
+  "brief": "Rediseño del flujo completo de AlToke (POS de kiosco, pantalla táctil 1280×800, uso de pie y con una mano, 100+ ventas por día, offline). La dirección elegida es bandeja táctil: objetivos grandes, bandeja al pulgar, arqueo como lista tocables. Se conservan dos artboards de la dirección ticket directo como referencia de contraste. Todas usan los tokens de packages/ui/src/tokens.css y stacks de fuente de sistema.",
+  "feature": "odd/tasks/altoke-m1-pos.md",
+  "artboards": [
+    {
+      "file": "02-bandeja-tactil.html",
+      "title": "Bandeja táctil · venta",
+      "tradeoff": "Objetivos grandes y bandeja abajo, al alcance del pulgar: perdona el apuro y el dedo sucio. A cambio, menos productos por pantalla y más cromo alrededor de cada ítem.",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "06-cobro-bandeja.html",
+      "title": "Bandeja táctil · cobro",
+      "tradeoff": "El cobro es una hoja que sube sobre la venta: total, medio de pago, billetes rápidos y vuelto en verde. Bloquea el cobro si el efectivo no alcanza, con la razón escrita. A cambio, tapa la venta mientras se cobra: corregir un ítem exige volver.",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "07-ticket-80mm.html",
+      "title": "Bandeja táctil · ticket de 80 mm",
+      "tradeoff": "El ticket se muestra a tamaño real al lado del vuelto, con la acción de nueva venta como salida principal. A cambio, el artefacto impreso ocupa media pantalla que en el kiosco casi nunca se mira.",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "04-cierre-bandeja.html",
+      "title": "Bandeja táctil · cierre de caja",
+      "tradeoff": "El arqueo es una lista de filas tocables y el veredicto (faltante) vive en un panel fijo con el botón de cierre al alcance del pulgar. A cambio, el cierre ocupa dos columnas: a 1024 px se degrada.",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "03-ticket-directo.html",
+      "title": "Ticket directo · venta (referencia)",
+      "tradeoff": "Dirección no elegida. Se conserva por contraste: la interfaz es el ticket y el teclado manda. Útil si más adelante se necesita una variante para cargar sin catálogo.",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "05-cierre-ticket.html",
+      "title": "Ticket directo · cierre (referencia)",
+      "tradeoff": "Dirección no elegida. El cierre se imprime como ticket Z al lado del conteo. Se conserva porque el artefacto Z imprimible es una idea rescatable en cualquier dirección.",
+      "width": 1280,
+      "height": 800
+    },
+    {
+      "file": "01-mostrador-lineal.html",
+      "title": "Mostrador lineal · venta (descartada)",
+      "tradeoff": "Descartada: densa y precisa, pero más exigente de leer para quien atiende de pie y con apuro.",
+      "width": 1280,
+      "height": 800
+    }
+  ]
+}

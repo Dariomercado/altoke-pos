@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280, initial-scale=1">
+<title>AlToke — 01 Mostrador lineal</title>
+<style>
+  /* Tokens: subconjunto exacto de packages/ui/src/tokens.css (claro). */
+  :root {
+    color-scheme: light;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    --space-xs: .25rem; --space-sm: .5rem; --space-md: 1rem;
+    --space-lg: 1.5rem; --space-xl: 2.5rem;
+    --gutter-desktop: 1.5rem; --page-margin-desktop: 2rem;
+
+    --radius-xs: .125rem; --radius-sm: .25rem; --radius-md: .5rem;
+    --radius-lg: .75rem; --radius-full: 9999px;
+
+    --size-touch-min: 2.75rem; --size-control: 3rem; --size-header: 4rem;
+    --shadow-panel: 0 1px 8px rgb(0 0 0 / 4%);
+    --focus-ring-width: 2px;
+
+    --brand-primary: #4d44e3; --brand-accent: #005049;
+    --brand-surface: #fbf8ff; --brand-text: #1b1b21;
+
+    --color-primary: var(--brand-primary); --color-on-primary: #ffffff;
+    --color-primary-container: #e2dfff; --color-on-primary-container: #0f0069;
+    --color-secondary: var(--brand-accent); --color-on-secondary: #ffffff;
+    --color-secondary-container: #89f5e7; --color-on-secondary-container: #00201d;
+    --color-tertiary: #005236; --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #6ffbbe; --color-on-tertiary-container: #002113;
+    --color-error: #93000a; --color-on-error: #ffffff;
+    --color-error-container: #ffdad6; --color-on-error-container: #690005;
+    --color-surface: var(--brand-surface);
+    --color-surface-dim: #dad9e1; --color-surface-bright: #fbf8ff;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f5f2fa;
+    --color-surface-container: #efecf4;
+    --color-surface-container-high: #e9e7ee;
+    --color-surface-container-highest: #e4e1e9;
+    --color-on-surface: var(--brand-text);
+    --color-on-surface-variant: #464555;
+    --color-outline: #777586; --color-outline-variant: #c7c4d8;
+    --color-placeholder: var(--color-on-surface-variant);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: var(--font-ui);
+    font-size: .9375rem;
+    line-height: 1.5rem;
+    display: grid;
+    grid-template-rows: var(--size-header) 1fr auto;
+    height: 800px;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; }
+  :where(:focus-visible) { outline: var(--focus-ring-width) solid var(--color-primary); outline-offset: 2px; }
+
+  /* ── Barra superior ───────────────────────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: var(--space-lg);
+    padding: 0 var(--page-margin-desktop);
+    border-bottom: 1px solid var(--color-outline-variant);
+    background: var(--color-surface-container-lowest);
+  }
+  .brand { display: flex; align-items: center; gap: var(--space-md); }
+  .brand .mark {
+    width: 2rem; height: 2rem; border-radius: var(--radius-sm);
+    background: var(--color-primary); color: var(--color-on-primary);
+    display: grid; place-items: center;
+    font-family: var(--font-sans); font-weight: 700; font-size: 1rem;
+  }
+  .brand b { font-family: var(--font-sans); font-size: 1.25rem; line-height: 1.75rem; letter-spacing: -.01em; }
+  .brand span { font-size: .75rem; letter-spacing: .02em; color: var(--color-on-surface-variant); display: block; margin-top: -2px; }
+
+  .shift {
+    display: flex; align-items: center; gap: var(--space-sm);
+    margin-left: var(--space-lg); padding-left: var(--space-lg);
+    border-left: 1px solid var(--color-outline-variant);
+    font-size: .75rem; letter-spacing: .02em; color: var(--color-on-surface-variant);
+  }
+  .dot { width: .5rem; height: .5rem; border-radius: var(--radius-full); background: var(--color-tertiary); }
+  .dot::after { content: ''; }
+
+  .spacer { flex: 1; }
+  .clock { font-size: 1.25rem; line-height: 1.75rem; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .ghost {
+    min-height: var(--size-control); padding: 0 var(--space-md);
+    background: transparent; border: 1px solid var(--color-outline-variant);
+    border-radius: var(--radius-md); font-size: .75rem; font-weight: 600;
+    letter-spacing: .02em; cursor: pointer;
+  }
+  .ghost:hover { background: var(--color-surface-container); }
+
+  /* ── Cuerpo: catálogo | cinta ─────────────────────────────────────── */
+  main { display: grid; grid-template-columns: 1fr 27rem; min-height: 0; }
+
+  .catalog { display: grid; grid-template-rows: auto auto auto 1fr; min-height: 0; padding: var(--space-lg) var(--page-margin-desktop) 0; }
+  .catalog-head { display: flex; align-items: flex-end; justify-content: space-between; gap: var(--space-lg); }
+  h1 { font-family: var(--font-sans); font-size: 2rem; line-height: 2.5rem; letter-spacing: -.02em; font-weight: 700; margin: 0; }
+  .catalog-head p { margin: var(--space-xs) 0 0; font-size: .8125rem; line-height: 1.25rem; color: var(--color-on-surface-variant); }
+
+  .search { position: relative; width: 22rem; }
+  .search input {
+    width: 100%; min-height: var(--size-control);
+    padding: 0 4.5rem 0 var(--space-md);
+    border: 1px solid var(--color-outline); border-radius: var(--radius-md);
+    background: var(--color-surface-container-lowest);
+    font: inherit;
+  }
+  .search input::placeholder { color: var(--color-placeholder); }
+  .search kbd {
+    position: absolute; right: var(--space-sm); top: 50%; transform: translateY(-50%);
+    font-family: var(--font-ui); font-size: .6875rem; font-weight: 700; letter-spacing: .04em;
+    padding: .125rem .375rem; border: 1px solid var(--color-outline-variant);
+    border-radius: var(--radius-sm); color: var(--color-on-surface-variant);
+  }
+
+  .tabs { display: flex; gap: var(--space-lg); margin-top: var(--space-lg); border-bottom: 1px solid var(--color-outline-variant); }
+  .tab {
+    background: none; border: 0; padding: 0 0 var(--space-sm);
+    font-size: .875rem; line-height: 1.25rem; letter-spacing: .01em; font-weight: 600;
+    color: var(--color-on-surface-variant); cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tab[aria-selected='true'] { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+  .tab span { font-variant-numeric: tabular-nums; font-weight: 400; opacity: .7; margin-left: .25rem; }
+
+  /* La grilla es una tabla: columnas alineadas, sin tarjetas. */
+  .grid-head, .row {
+    display: grid;
+    grid-template-columns: 1fr 5rem 7rem;
+    align-items: center;
+    gap: var(--space-md);
+  }
+  .grid-head {
+    padding: var(--space-sm) var(--space-md) var(--space-sm) var(--space-sm);
+    font-size: .6875rem; line-height: .875rem; letter-spacing: .04em; font-weight: 700;
+    text-transform: uppercase; color: var(--color-on-surface-variant);
+  }
+  .grid-head span:not(:first-child) { text-align: right; }
+
+  .rows { overflow: auto; padding-bottom: var(--space-md); }
+  .row {
+    width: 100%; text-align: left;
+    background: none; border: 0; cursor: pointer;
+    min-height: 3.25rem;
+    padding: var(--space-sm) var(--space-md) var(--space-sm) var(--space-sm);
+    border-bottom: 1px solid var(--color-outline-variant);
+    border-radius: var(--radius-xs);
+    transition: background-color 120ms ease;
+  }
+  .row:hover { background: var(--color-surface-container-low); }
+  .row:active { background: var(--color-primary-container); }
+  .row:active .price { color: var(--color-on-primary-container); }
+  .row .name { font-size: .9375rem; line-height: 1.5rem; }
+  .row .name small { display: block; font-size: .75rem; line-height: 1rem; color: var(--color-on-surface-variant); }
+  .row .stock { text-align: right; font-size: .8125rem; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+  .row .stock.low { color: var(--color-error); }
+  .row .price { text-align: right; font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+
+  /* ── La cinta: venta actual ───────────────────────────────────────── */
+  aside {
+    display: grid; grid-template-rows: auto 1fr auto;
+    border-left: 1px solid var(--color-outline-variant);
+    background: var(--color-surface-container-lowest);
+    min-height: 0;
+  }
+  .ticket-head { padding: var(--space-lg) var(--space-lg) var(--space-md); border-bottom: 1px solid var(--color-outline-variant); }
+  .ticket-head .eyebrow { font-size: .6875rem; line-height: .875rem; letter-spacing: .04em; font-weight: 700; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .ticket-head h2 { font-family: var(--font-sans); font-size: 1.5rem; line-height: 2rem; letter-spacing: -.015em; font-weight: 600; margin: var(--space-xs) 0 0; }
+  .ticket-head h2 span { color: var(--color-on-surface-variant); font-weight: 400; }
+
+  .lines { overflow: auto; padding: var(--space-sm) var(--space-lg); }
+  .line {
+    display: grid; grid-template-columns: 1.75rem 1fr auto; gap: var(--space-sm) var(--space-md);
+    padding: var(--space-sm) 0; border-bottom: 1px solid var(--color-outline-variant);
+    align-items: baseline;
+    animation: lineIn 180ms cubic-bezier(.215,.61,.355,1) both;
+  }
+  .line .qty { font-size: .8125rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-primary); }
+  .line .desc { font-size: .875rem; line-height: 1.25rem; }
+  .line .desc small { display: block; font-size: .75rem; color: var(--color-on-surface-variant); font-variant-numeric: tabular-nums; }
+  .line .amt { font-size: .9375rem; font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+  @keyframes lineIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+  .empty { display: grid; place-items: center; height: 100%; text-align: center; color: var(--color-on-surface-variant); font-size: .875rem; padding: var(--space-lg); }
+
+  .totals { padding: var(--space-md) var(--space-lg) 0; border-top: 1px solid var(--color-outline-variant); }
+  .totals dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: var(--space-xs) 0; font-size: .8125rem; line-height: 1.25rem; }
+  .totals dt { color: var(--color-on-surface-variant); }
+  .totals dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+  .grand { display: flex; align-items: baseline; justify-content: space-between; margin-top: var(--space-md); padding-top: var(--space-md); border-top: 1px solid var(--color-on-surface); }
+  .grand dt { font-size: .75rem; letter-spacing: .02em; font-weight: 600; text-transform: uppercase; }
+  .grand dd {
+    margin: 0; font-family: var(--font-sans);
+    font-size: 2rem; line-height: 2.5rem; letter-spacing: -.02em; font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .pay { padding: var(--space-md) var(--space-lg) var(--space-lg); display: grid; gap: var(--space-sm); }
+  .pay .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm); }
+  .cash {
+    display: grid; gap: 2px;
+    padding: var(--space-sm) var(--space-md);
+    border: 1px dashed var(--color-outline); border-radius: var(--radius-md);
+    background: var(--color-surface-container-low);
+  }
+  .cash label { font-size: .6875rem; letter-spacing: .04em; font-weight: 700; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .cash .v { font-size: 1.125rem; line-height: 1.75rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .cash .v.change { color: var(--color-tertiary); }
+
+  .cobrar {
+    min-height: 4rem; width: 100%;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 var(--space-lg);
+    background: var(--color-primary); color: var(--color-on-primary);
+    border: 0; border-radius: var(--radius-md);
+    font-size: .875rem; font-weight: 700; letter-spacing: .04em;
+    cursor: pointer;
+    transition: transform 120ms cubic-bezier(.215,.61,.355,1), background-color 150ms ease;
+  }
+  .cobrar:hover { background: var(--color-on-primary-container); }
+  .cobrar:active { transform: scale(.985); }
+  .cobrar .amount { font-size: 1.25rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .cobrar:disabled { background: var(--color-surface-container-highest); color: var(--color-on-surface-variant); cursor: not-allowed; transform: none; }
+
+  .hint { display: flex; justify-content: space-between; font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .hint button { background: none; border: 0; padding: 0; cursor: pointer; font-size: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--color-error); }
+  .hint button:hover { text-decoration: underline; }
+
+  /* ── Franja de estado ─────────────────────────────────────────────── */
+  footer {
+    display: flex; align-items: center; gap: var(--space-lg);
+    height: 2.75rem; padding: 0 var(--page-margin-desktop);
+    border-top: 1px solid var(--color-outline-variant);
+    background: var(--color-surface-container-low);
+    font-size: .75rem; letter-spacing: .02em; color: var(--color-on-surface-variant);
+  }
+  footer b { color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+  footer .spacer { flex: 1; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .line { animation: none; }
+    .row, .cobrar { transition: none; }
+    .cobrar:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark" aria-hidden="true">A</div>
+    <div>
+      <b>AlToke</b>
+      <span>Kiosco Don Julio · Sucursal 1</span>
+    </div>
+  </div>
+  <div class="shift"><span class="dot" aria-hidden="true"></span> Turno abierto 08:14 · terminal 1</div>
+  <div class="spacer"></div>
+  <div class="clock num" aria-label="Hora actual">14:32</div>
+  <button class="ghost" type="button">Cerrar turno</button>
+</header>
+
+<main>
+  <section class="catalog" aria-labelledby="cat-title">
+    <div class="catalog-head">
+      <div>
+        <h1 id="cat-title">Vender</h1>
+        <p>14 productos · precios con IVA incluido</p>
+      </div>
+      <div class="search">
+        <label class="sr" for="q" style="position:absolute;left:-9999px">Buscar producto</label>
+        <input id="q" type="search" placeholder="Código o nombre…" autocomplete="off">
+        <kbd>F2</kbd>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Categorías">
+      <button class="tab" role="tab" aria-selected="true" type="button">Todos <span>14</span></button>
+      <button class="tab" role="tab" aria-selected="false" type="button">Golosinas <span>4</span></button>
+      <button class="tab" role="tab" aria-selected="false" type="button">Bebidas <span>4</span></button>
+      <button class="tab" role="tab" aria-selected="false" type="button">Cigarrillos <span>2</span></button>
+      <button class="tab" role="tab" aria-selected="false" type="button">Almacén <span>4</span></button>
+    </div>
+
+    <div class="grid-head" aria-hidden="true">
+      <span>Producto</span><span>Stock</span><span>Precio</span>
+    </div>
+
+    <div class="rows" id="rows">
+      <button class="row" type="button" data-name="Alfajor Triple Guaymallén" data-price="1800">
+        <span class="name">Alfajor Triple Guaymallén<small>7790580123456</small></span>
+        <span class="stock">12 u.</span>
+        <span class="price">$ 1.800,00</span>
+      </button>
+      <button class="row" type="button" data-name="Coca-Cola 500 ml" data-price="3200">
+        <span class="name">Coca-Cola 500 ml<small>7790895000218</small></span>
+        <span class="stock">8 u.</span>
+        <span class="price">$ 3.200,00</span>
+      </button>
+      <button class="row" type="button" data-name="Papas Lays Clásicas 90 g" data-price="2900">
+        <span class="name">Papas Lays Clásicas 90 g<small>7794000951023</small></span>
+        <span class="stock">5 u.</span>
+        <span class="price">$ 2.900,00</span>
+      </button>
+      <button class="row" type="button" data-name="Marlboro Box 20" data-price="4500">
+        <span class="name">Marlboro Box 20<small>7790895070017</small></span>
+        <span class="stock low">3 u.</span>
+        <span class="price">$ 4.500,00</span>
+      </button>
+      <button class="row" type="button" data-name="Agua Villa del Sur 500 ml" data-price="1900">
+        <span class="name">Agua Villa del Sur 500 ml<small>7790070410216</small></span>
+        <span class="stock">20 u.</span>
+        <span class="price">$ 1.900,00</span>
+      </button>
+      <button class="row" type="button" data-name="Sugus Surtido 8 u." data-price="900">
+        <span class="name">Sugus Surtido 8 u.<small>7790040110026</small></span>
+        <span class="stock">30 u.</span>
+        <span class="price">$ 900,00</span>
+      </button>
+      <button class="row" type="button" data-name="Speed Energy 250 ml" data-price="3600">
+        <span class="name">Speed Energy 250 ml<small>7790895001239</small></span>
+        <span class="stock">7 u.</span>
+        <span class="price">$ 3.600,00</span>
+      </button>
+      <button class="row" type="button" data-name="Café La Virginia 50 g" data-price="1400">
+        <span class="name">Café La Virginia 50 g<small>7790070310011</small></span>
+        <span class="stock">9 u.</span>
+        <span class="price">$ 1.400,00</span>
+      </button>
+      <button class="row" type="button" data-name="Yogur Ser Bebible 200 ml" data-price="1700">
+        <span class="name">Yogur Ser Bebible 200 ml<small>7790387001234</small></span>
+        <span class="stock">6 u.</span>
+        <span class="price">$ 1.700,00</span>
+      </button>
+    </div>
+  </section>
+
+  <aside aria-labelledby="venta-title">
+    <div class="ticket-head">
+      <p class="eyebrow">Venta actual</p>
+      <h2 id="venta-title">#0142 <span>· 4 ítems</span></h2>
+    </div>
+
+    <div class="lines" id="lines">
+      <div class="line"><span class="qty">2×</span><span class="desc">Coca-Cola 500 ml<small>$ 3.200,00 c/u</small></span><span class="amt">$ 6.400,00</span></div>
+      <div class="line"><span class="qty">1×</span><span class="desc">Alfajor Triple Guaymallén<small>$ 1.800,00 c/u</small></span><span class="amt">$ 1.800,00</span></div>
+      <div class="line"><span class="qty">1×</span><span class="desc">Papas Lays Clásicas 90 g<small>$ 2.900,00 c/u</small></span><span class="amt">$ 2.900,00</span></div>
+      <div class="line"><span class="qty">1×</span><span class="desc">Marlboro Box 20<small>$ 4.500,00 c/u</small></span><span class="amt">$ 4.500,00</span></div>
+    </div>
+
+    <div>
+      <div class="totals">
+        <dl>
+          <dt>Subtotal</dt><dd class="num">$ 15.600,00</dd>
+          <dt>IVA 21% incluido</dt><dd class="num">$ 2.707,44</dd>
+        </dl>
+        <dl class="grand">
+          <dt>Total</dt>
+          <dd class="num" id="total">$ 15.600,00</dd>
+        </dl>
+      </div>
+
+      <div class="pay">
+        <div class="row2">
+          <div class="cash">
+            <label>Efectivo recibido</label>
+            <span class="v num">$ 20.000,00</span>
+          </div>
+          <div class="cash" style="border-style:solid;border-color:var(--color-tertiary)">
+            <label>Vuelto</label>
+            <span class="v num change">$ 4.400,00</span>
+          </div>
+        </div>
+        <button class="cobrar" type="button">
+          <span>COBRAR</span>
+          <span class="amount num" id="cobrar-amount">$ 15.600,00</span>
+        </button>
+        <div class="hint">
+          <span>F4 · agregar cantidad</span>
+          <button type="button">Anular último</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <span>Turno 08:14 → ahora</span>
+  <span>34 ventas</span>
+  <span>Recaudado <b>$ 128.400,00</b></span>
+  <span class="spacer"></span>
+  <span>Guardado local · sin conexión</span>
+</footer>
+
+<script>
+  const fmt = n => '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const lines = document.getElementById('lines');
+  const totalEl = document.getElementById('total');
+  const cobrarAmount = document.getElementById('cobrar-amount');
+  const ventaTitle = document.getElementById('venta-title');
+  const items = new Map([
+    ['Coca-Cola 500 ml', { qty: 2, price: 3200 }],
+    ['Alfajor Triple Guaymallén', { qty: 1, price: 1800 }],
+    ['Papas Lays Clásicas 90 g', { qty: 1, price: 2900 }],
+    ['Marlboro Box 20', { qty: 1, price: 4500 }],
+  ]);
+
+  function render() {
+    let total = 0, count = 0;
+    lines.innerHTML = '';
+    for (const [name, it] of items) {
+      total += it.qty * it.price; count += it.qty;
+      const el = document.createElement('div');
+      el.className = 'line';
+      el.innerHTML = `<span class="qty">${it.qty}×</span>
+        <span class="desc"></span>
+        <span class="amt num">${fmt(it.qty * it.price)}</span>`;
+      const desc = el.querySelector('.desc');
+      desc.textContent = name;
+      const small = document.createElement('small');
+      small.textContent = fmt(it.price) + ' c/u';
+      desc.appendChild(small);
+      lines.appendChild(el);
+    }
+    if (!items.size) lines.innerHTML = '<div class="empty">La venta está vacía.<br>Tocá un producto para empezar.</div>';
+    totalEl.textContent = fmt(total);
+    cobrarAmount.textContent = fmt(total);
+    ventaTitle.innerHTML = `#0142 <span>· ${count} ${count === 1 ? 'ítem' : 'ítems'}</span>`;
+  }
+
+  for (const row of document.querySelectorAll('.row')) {
+    row.addEventListener('click', () => {
+      const name = row.dataset.name, price = Number(row.dataset.price);
+      const it = items.get(name) || { qty: 0, price };
+      it.qty += 1; items.set(name, it);
+      render();
+    });
+  }
+  render();
+</script>
+</body>
+</html>
