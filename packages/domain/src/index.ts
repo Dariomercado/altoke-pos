@@ -7,3 +7,24 @@ export {
   redondearMitadArriba,
 } from './dinero'
 export type { AlicuotaBps, Centavos } from './dinero'
+
+export {
+  MEDIOS_PAGO,
+  leerDesde,
+  proyeccionStock,
+  proyeccionTurno,
+  proyectar,
+  resumirTurno,
+  validarEvento,
+} from './eventos'
+export type {
+  EstadoTurno,
+  EstadoVenta,
+  Evento,
+  MedioPago,
+  PagoRegistrado,
+  Proyeccion,
+  ResumenTurno,
+  StockPorSku,
+  VentaEnTurno,
+} from './eventos'
