@@ -1,0 +1,124 @@
+/*
+ * Ticket de 80 mm (T7, `0001` §9 y `0002` §2 modo F0).
+ *
+ * Papel de 80 mm con 72 mm de ancho útil: los 8 mm que faltan son el margen que la impresora
+ * térmica no imprime. Monospace y números tabulares para que las columnas de importes queden
+ * alineadas aunque cambie el largo del nombre del producto.
+ *
+ * Al imprimir, el ticket es lo único visible: la app queda con `visibility: hidden` y no con
+ * `display: none` para no reflowear la pantalla detrás mientras se arma la página.
+ */
+
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
+.ticket {
+  width: 72mm;
+  padding: var(--space-md);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
+  font-family: ui-monospace, 'Courier New', monospace;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  font-variant-numeric: var(--font-variant-numeric);
+  box-shadow: var(--shadow-panel);
+}
+
+.ticket__cabecera {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px dashed currentColor;
+  margin-bottom: var(--space-sm);
+  text-align: center;
+}
+
+.ticket__marca {
+  font-weight: 700;
+}
+
+.ticket__items,
+.ticket__pagos {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.ticket__item,
+.ticket__pago,
+.ticket__cambio,
+.ticket__total {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.ticket__detalle {
+  overflow-wrap: anywhere;
+}
+
+.ticket__importe,
+.ticket__total strong {
+  white-space: nowrap;
+}
+
+.ticket__total {
+  padding-top: var(--space-sm);
+  border-top: 1px dashed currentColor;
+  margin-top: var(--space-sm);
+  font-weight: 700;
+}
+
+.ticket__cambio {
+  margin-top: var(--space-xs);
+}
+
+.ticket__leyenda {
+  margin-top: var(--space-md);
+  padding-top: var(--space-sm);
+  border-top: 1px dashed currentColor;
+  text-align: center;
+  font-size: 0.6875rem;
+}
+
+.ticket__acciones {
+  display: flex;
+  justify-content: center;
+  margin-top: var(--space-md);
+}
+
+@media print {
+  body {
+    background: #ffffff;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .ticket,
+  .ticket * {
+    visibility: visible;
+  }
+
+  .ticket {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 72mm;
+    padding: 0;
+    border-radius: 0;
+    background: #ffffff;
+    color: #000000;
+    box-shadow: none;
+  }
+
+  /* El botón de imprimir no se imprime. */
+  .ticket__acciones {
+    display: none;
+  }
+}
