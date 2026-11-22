@@ -9,9 +9,19 @@ export interface MarcaTenant {
 }
 
 export const MARCA_POR_DEFECTO: MarcaTenant = {
-  primary: '#4f46e5',
-  accent: '#0d9488',
+  primary: '#4d44e3',
+  accent: '#005049',
 }
+
+/**
+ * Los contenedores del tema claro (`tokens.css`) que **no** derivan de `--brand-surface`.
+ *
+ * Es la razón por la que una marca oscura se rechaza: el fondo y la tinta del tenant se aplican
+ * sobre `--color-surface` y `--color-on-surface`, pero las tarjetas y los paneles siguen pintándose
+ * con estos cuatro colores fijos, así que una tinta clara desaparece encima de ellos (1.05:1 sobre
+ * blanco). Hasta que los contenedores se deriven de la marca, el guard valida contra todos.
+ */
+export const CONTENEDORES_DEL_TEMA_CLARO = ['#ffffff', '#f5f2fa', '#efecf4', '#e9e7ee'] as const
 
 /**
  * Los cinco huecos que un tenant sobrescribe (`0001` §7). Es el contrato entre `tokens.css` y las

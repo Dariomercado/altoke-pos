@@ -1,6 +1,7 @@
 import type { MedioPago } from '@altoke/domain'
 import { formatearCentavos, formatearFechaHora } from '../formato'
 import { importeLineaCentavos } from '../pos/venta'
+import { logoDeMarca } from '../marca'
 import type { VentaCobrada } from '../pos/caja'
 
 export interface TicketProps {
@@ -29,10 +30,13 @@ const ETIQUETA_MEDIO: Readonly<Record<MedioPago, string>> = {
  * pantalla, a 72 mm de ancho útil dentro de un papel de 80 mm.
  */
 export function Ticket({ venta, nombreTenant, terminalId, logoUrl }: TicketProps) {
+  // Igual que el encabezado: un logo en blanco no se dibuja, ni como `<img src="">`.
+  const logo = logoDeMarca(logoUrl)
+
   return (
     <section className="ticket" aria-label="Ticket de la venta">
       <header className="ticket__cabecera">
-        {logoUrl !== undefined && <img className="ticket__logo" src={logoUrl} alt="" />}
+        {logo !== undefined && <img className="ticket__logo" src={logo} alt="" />}
         <p className="ticket__marca">{nombreTenant}</p>
         <p>Terminal {terminalId}</p>
         <p>{formatearFechaHora(venta.ocurridoEn)}</p>

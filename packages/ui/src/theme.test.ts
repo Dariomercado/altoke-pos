@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import tokensCss from './tokens.css?raw'
 import {
+  CONTENEDORES_DEL_TEMA_CLARO,
   HUECOS_DE_MARCA,
   MARCA_POR_DEFECTO,
   contraste as contrasteWCAG,
@@ -346,6 +347,25 @@ describe('tokens.css — la marca del tenant sólo toca cinco variables', () => 
     expect(valor(declaraciones, '--color-secondary')).toBe('#f97316')
     expect(valor(declaraciones, '--color-on-primary')).toBe(textoSobre('#e11d48'))
     expect(valor(declaraciones, '--color-on-secondary')).toBe(textoSobre('#f97316'))
+  })
+
+  it('la marca por defecto es la de tokens.css, no una copia', () => {
+    const claro = declaracionesDe(LIMPIO, ':root')
+
+    expect(MARCA_POR_DEFECTO.primary).toBe(claro.get('--brand-primary'))
+    expect(MARCA_POR_DEFECTO.accent).toBe(claro.get('--brand-accent'))
+  })
+
+  it('los contenedores claros que no siguen a la marca son los de tokens.css', () => {
+    const claro = declaracionesDe(LIMPIO, ':root')
+    const declarados = [
+      '--color-surface-container-lowest',
+      '--color-surface-container-low',
+      '--color-surface-container',
+      '--color-surface-container-high',
+    ].map((token) => valor(claro, token))
+
+    expect(declarados).toEqual([...CONTENEDORES_DEL_TEMA_CLARO])
   })
 
   it('declara los cinco huecos de marca y ninguno más', () => {

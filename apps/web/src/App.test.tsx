@@ -204,4 +204,46 @@ describe('POS — marca del tenant', () => {
     expect(document.documentElement.style.getPropertyValue('--brand-surface')).toBe(fondoAplicado)
     expect(localStorage.getItem('altoke:marca:kiosco-1')).toBeNull()
   })
+
+  it('rechaza una marca oscura porque los contenedores del tema claro no la siguen', async () => {
+    const user = userEvent.setup()
+    render(<App store={crearStoreEnMemoria()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Marca' }))
+    const fondo = await screen.findByLabelText('Color de fondo')
+    const tinta = await screen.findByLabelText('Color de texto')
+
+    const fondoAplicado = document.documentElement.style.getPropertyValue('--brand-surface')
+    expect(fondoAplicado).toBe('#fbf8ff')
+
+    fireEvent.change(fondo, { target: { value: '#0b1326' } })
+    fireEvent.change(tinta, { target: { value: '#dae2fd' } })
+
+    const aviso = await screen.findByRole('alert')
+    expect(aviso.textContent).toContain('contenedores')
+    expect(aviso.textContent).toContain('--brand-surface')
+    expect(aviso.textContent).toMatch(/\d+,\d{2}:1/)
+    expect(document.documentElement.style.getPropertyValue('--brand-surface')).toBe(fondoAplicado)
+    expect(document.documentElement.style.getPropertyValue('--brand-text')).toBe('#1b1b21')
+    expect(localStorage.getItem('altoke:marca:kiosco-1')).toBeNull()
+  })
+
+  it('al vaciar el campo del logo la imagen del encabezado se va con él', async () => {
+    const user = userEvent.setup()
+    render(<App store={crearStoreEnMemoria()} />)
+
+    await user.click(await screen.findByRole('button', { name: 'Marca' }))
+    const logo = await screen.findByLabelText('URL del logo')
+
+    fireEvent.change(logo, { target: { value: 'https://cdn.test/kiosco.svg' } })
+    expect(await screen.findByAltText('Logo de AlToke · Kiosco demo')).toBeDefined()
+
+    await user.clear(logo)
+
+    expect(screen.queryByAltText('Logo de AlToke · Kiosco demo')).toBeNull()
+    // Ni un `<img src="">`: el hueco del logo se borra, no queda vacío.
+    expect(document.querySelectorAll('img')).toHaveLength(0)
+    expect(document.documentElement.style.getPropertyValue('--brand-logo')).toBe('')
+    expect(localStorage.getItem('altoke:marca:kiosco-1')).not.toContain('logoUrl')
+  })
 })

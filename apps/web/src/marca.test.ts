@@ -1,7 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { variablesDeMarca } from '@altoke/ui'
-import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
+import { esContrasteLegible, variablesDeMarca } from '@altoke/ui'
+import {
+  MARCA_INICIAL,
+  aplicarMarca,
+  cargarMarca,
+  diagnosticoDeMarca,
+  guardarMarca,
+  marcaEsLegible,
+} from './marca'
 
 const TENANT = 'kiosco-1'
 const CLAVE = `altoke:marca:${TENANT}`
@@ -49,6 +56,67 @@ describe('marca — persistencia por tenant', () => {
     expect(marca.surface).toBe('#fbf8ff')
     expect(marca.text).toBe('#1b1b21')
     expect(marca.logoUrl).toBeUndefined()
+  })
+})
+
+describe('marca — el loader aplica el mismo guard que el panel', () => {
+  it('descarta un logo guardado con esquema no permitido', () => {
+    for (const url of ['javascript:alert(1)', '//evil.example/x.png', 'file:///etc/passwd']) {
+      localStorage.setItem(CLAVE, JSON.stringify({ ...MARCA_INICIAL, logoUrl: url }))
+
+      expect(cargarMarca(TENANT).logoUrl, url).toBeUndefined()
+    }
+  })
+
+  it('un logo guardado en blanco es "sin logo", nunca la cadena vacía', () => {
+    localStorage.setItem(CLAVE, JSON.stringify({ ...MARCA_INICIAL, logoUrl: '   ' }))
+
+    expect(cargarMarca(TENANT).logoUrl).toBeUndefined()
+  })
+
+  it('un par fondo/tinta ilegible se carga con los valores legibles de la marca inicial', () => {
+    localStorage.setItem(
+      CLAVE,
+      JSON.stringify({ ...MARCA_INICIAL, surface: '#9a9a9a', text: '#a0a0a0' }),
+    )
+
+    const marca = cargarMarca(TENANT)
+
+    expect(esContrasteLegible(marca.text ?? '', marca.surface ?? '')).toBe(true)
+    expect(marca.surface).toBe(MARCA_INICIAL.surface)
+    expect(marca.text).toBe(MARCA_INICIAL.text)
+  })
+
+  it('una marca oscura guardada se rechaza: los contenedores claros no la siguen', () => {
+    localStorage.setItem(
+      CLAVE,
+      JSON.stringify({ ...MARCA_INICIAL, surface: '#0b1326', text: '#dae2fd' }),
+    )
+
+    const marca = cargarMarca(TENANT)
+
+    // El par fondo/tinta se lee: lo que falla son los contenedores del tema claro.
+    expect(esContrasteLegible(marca.text ?? '', marca.surface ?? '')).toBe(true)
+    expect(marca.surface).toBe(MARCA_INICIAL.surface)
+    expect(marca.text).toBe(MARCA_INICIAL.text)
+    expect(marcaEsLegible(marca)).toBe(true)
+  })
+
+  it('la marca inicial es legible: es la que se restablece y la que usa el loader', () => {
+    expect(diagnosticoDeMarca(MARCA_INICIAL)).toBeNull()
+    expect(marcaEsLegible(MARCA_INICIAL)).toBe(true)
+  })
+
+  it('el diagnóstico nombra el contraste de los contenedores de una marca oscura', () => {
+    const diagnostico = diagnosticoDeMarca({
+      ...MARCA_INICIAL,
+      surface: '#0b1326',
+      text: '#dae2fd',
+    })
+
+    expect(diagnostico).toContain('contenedores')
+    expect(diagnostico).toContain('--brand-surface')
+    expect(diagnostico).toMatch(/\d+,\d{2}:1/)
   })
 })
 

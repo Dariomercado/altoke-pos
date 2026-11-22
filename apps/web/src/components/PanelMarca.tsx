@@ -1,8 +1,14 @@
 import { useState } from 'react'
-import { CONTRASTE_MINIMO, contraste, esContrasteLegible } from '@altoke/ui'
 import type { MarcaTenant } from '@altoke/ui'
 import { formatearCentavos } from '../formato'
-import { MARCA_INICIAL, SUPERFICIE_INICIAL, TINTA_INICIAL, esLogoValido } from '../marca'
+import {
+  MARCA_INICIAL,
+  SUPERFICIE_INICIAL,
+  TINTA_INICIAL,
+  diagnosticoDeMarca,
+  logoDeMarca,
+  sinLogo,
+} from '../marca'
 
 export interface PanelMarcaProps {
   readonly marca: MarcaTenant
@@ -38,8 +44,10 @@ const TOTAL_DE_MUESTRA = LINEAS_DE_MUESTRA.reduce((suma, linea) => suma + linea.
  * del POS y del ticket, así que muestra exactamente lo que va a ver el cajero cuando las variables
  * cambian en la raíz.
  *
- * Guard de contraste: un par texto/fondo por debajo de AA no se aplica. La edición se rechaza
- * entera —queda la marca anterior— y el aviso dice qué par quedó ilegible, con el ratio medido.
+ * Guard de contraste: lo decide `diagnosticoDeMarca` (el mismo guard que usa el loader), no una
+ * copia local. Una marca por debajo de AA no se aplica —queda la anterior— y el aviso dice qué
+ * quedó ilegible, con el ratio medido: el par fondo/tinta, o los contenedores del tema claro
+ * cuando la marca es oscura y por eso el POS quedaría ilegible en las tarjetas.
  */
 export function PanelMarca({
   marca,
@@ -51,24 +59,13 @@ export function PanelMarca({
   const [logoUrl, setLogoUrl] = useState(() => marca.logoUrl ?? '')
   const [aviso, setAviso] = useState<string | null>(null)
 
-  const superficie = marca.surface ?? SUPERFICIE_INICIAL
-  const tinta = marca.text ?? TINTA_INICIAL
-
   function cambiarColor(campo: CampoDeColor, valor: string): void {
     const nueva: MarcaTenant = { ...marca, [campo]: valor }
+    const diagnostico = diagnosticoDeMarca(nueva)
 
-    if (campo === 'surface' || campo === 'text') {
-      const fondo = normalizarHex(nueva.surface, superficie)
-      const texto = normalizarHex(nueva.text, tinta)
-
-      if (!esContrasteLegible(texto, fondo)) {
-        setAviso(
-          `No se aplicó: el texto ${texto} sobre el fondo ${fondo} no es legible ` +
-            `(${ratioLegible(contraste(texto, fondo))}; el mínimo es ` +
-            `${ratioLegible(CONTRASTE_MINIMO)}). Queda la marca anterior.`,
-        )
-        return
-      }
+    if (diagnostico !== null) {
+      setAviso(`No se aplicó: ${diagnostico}. Queda la marca anterior.`)
+      return
     }
 
     setAviso(null)
@@ -78,14 +75,16 @@ export function PanelMarca({
   function cambiarLogo(valor: string): void {
     setLogoUrl(valor)
 
+    const logo = logoDeMarca(valor)
+
     // Vaciar el campo es pedir "sin logo": el hueco se omite y `aplicarMarca` lo borra.
-    if (valor.trim() !== '' && !esLogoValido(valor)) {
+    if (logo === undefined && valor.trim() !== '') {
       setAviso('El logo tiene que ser una URL http, https o data:image. No se aplicó.')
       return
     }
 
     setAviso(null)
-    onCambiar({ ...marca, logoUrl: valor.trim() })
+    onCambiar(logo === undefined ? sinLogo(marca) : { ...marca, logoUrl: logo })
   }
 
   function restablecer(): void {
@@ -187,14 +186,4 @@ function valorDeColor(campo: CampoDeColor, marca: MarcaTenant): string {
     case 'text':
       return marca.text ?? TINTA_INICIAL
   }
-}
-
-/** El input de color sólo entrega `#rrggbb`, pero el tipo dice `string`: se sanea igual. */
-function normalizarHex(valor: string | undefined, porDefecto: string): string {
-  return valor !== undefined && /^#[0-9a-f]{6}$/i.test(valor) ? valor.toLowerCase() : porDefecto
-}
-
-/** Ratio WCAG con coma decimal: `4,52:1` es como se lee en español. */
-function ratioLegible(ratio: number): string {
-  return `${ratio.toFixed(2).replace('.', ',')}:1`
 }

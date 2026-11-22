@@ -1,5 +1,6 @@
 import type { ResumenTurno } from '@altoke/domain'
 import { formatearCentavos } from '../formato'
+import { logoDeMarca } from '../marca'
 
 export interface EncabezadoProps {
   readonly nombreTenant: string
@@ -20,11 +21,14 @@ export function Encabezado({
   onCerrarCaja,
   logoUrl,
 }: EncabezadoProps) {
+  // Un logo en blanco es "sin logo": sin `<img src="">` y sin el warning de React.
+  const logo = logoDeMarca(logoUrl)
+
   return (
     <header className="encabezado">
       <div className="encabezado__marca">
-        {logoUrl !== undefined && (
-          <img className="encabezado__logo" src={logoUrl} alt={`Logo de ${nombreTenant}`} />
+        {logo !== undefined && (
+          <img className="encabezado__logo" src={logo} alt={`Logo de ${nombreTenant}`} />
         )}
         <h1 className="encabezado__titulo">{nombreTenant}</h1>
         <p className="encabezado__terminal">Terminal {terminalId}</p>
