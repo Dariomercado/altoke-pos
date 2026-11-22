@@ -78,6 +78,12 @@ ul {
   box-shadow: var(--shadow-panel);
 }
 
+.encabezado__logo {
+  max-height: 2.5rem;
+  max-width: 8rem;
+  object-fit: contain;
+}
+
 .encabezado__titulo {
   font-size: var(--text-headline-sm);
   line-height: var(--leading-headline-sm);
@@ -225,6 +231,7 @@ ul {
 .venta__titulo,
 .apertura__titulo,
 .cierre__titulo,
+.marca__titulo,
 .ultimo-cierre__titulo {
   font-size: var(--text-headline-sm);
   line-height: var(--leading-headline-sm);
@@ -233,7 +240,8 @@ ul {
 
 .venta__vacia,
 .apertura__ayuda,
-.cierre__ayuda {
+.cierre__ayuda,
+.marca__ayuda {
   color: var(--color-on-surface-variant);
   font-size: var(--text-body-md);
 }
@@ -425,6 +433,75 @@ ul {
 }
 
 .cierre__acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+/* Marca del tenant (T8) ------------------------------------------------------------------------ */
+
+.marca {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-container);
+  box-shadow: var(--shadow-panel);
+}
+
+.marca__aviso {
+  padding: var(--space-md);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-md);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
+  font-size: var(--text-body-md);
+}
+
+.marca__colores {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  gap: var(--space-sm);
+}
+
+.marca__fila {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--size-touch-min);
+}
+
+/* El selector de color nativo es un target táctil más: 44px y borde de contraste. */
+.marca__color {
+  width: var(--size-touch-min);
+  height: var(--size-touch-min);
+  padding: var(--space-xs);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-lowest);
+  cursor: pointer;
+}
+
+.marca__preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: flex-start;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-container-low);
+}
+
+/* Mini ticket: mismas reglas que el de 80 mm, achicado para que entre en el panel. */
+.marca__ticket {
+  width: 52mm;
+  font-size: 0.625rem;
+  box-shadow: none;
+}
+
+.marca__acciones {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm);

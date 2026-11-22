@@ -7,6 +7,8 @@ export interface TicketProps {
   readonly venta: VentaCobrada
   readonly nombreTenant: string
   readonly terminalId: string
+  /** El logo del tenant, impreso arriba. Sale en el ticket igual que en la pantalla. */
+  readonly logoUrl?: string | undefined
 }
 
 const ETIQUETA_MEDIO: Readonly<Record<MedioPago, string>> = {
@@ -26,10 +28,11 @@ const ETIQUETA_MEDIO: Readonly<Record<MedioPago, string>> = {
  * El CSS de impresión vive en `styles/ticket.css`: al imprimir, esto es lo único que sale en
  * pantalla, a 72 mm de ancho útil dentro de un papel de 80 mm.
  */
-export function Ticket({ venta, nombreTenant, terminalId }: TicketProps) {
+export function Ticket({ venta, nombreTenant, terminalId, logoUrl }: TicketProps) {
   return (
     <section className="ticket" aria-label="Ticket de la venta">
       <header className="ticket__cabecera">
+        {logoUrl !== undefined && <img className="ticket__logo" src={logoUrl} alt="" />}
         <p className="ticket__marca">{nombreTenant}</p>
         <p>Terminal {terminalId}</p>
         <p>{formatearFechaHora(venta.ocurridoEn)}</p>

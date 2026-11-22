@@ -14,28 +14,31 @@ import { DENOMINACIONES, armarArqueo, contarDenominaciones } from '@altoke/domai
 import type { Arqueo, Centavos, ConteoPorDenominacion } from '@altoke/domain'
 import { crearIndexedDbStore } from '@altoke/store'
 import type { PosStore } from '@altoke/store'
+import type { MarcaTenant } from '@altoke/ui'
 import { CATALOGO, STOCK_INICIAL } from './catalogo'
 import type { ProductoDeCatalogo } from './catalogo'
 import { AperturaCaja } from './components/AperturaCaja'
 import { Encabezado } from './components/Encabezado'
 import { GrillaProductos } from './components/GrillaProductos'
 import { PanelCierre } from './components/PanelCierre'
+import { PanelMarca } from './components/PanelMarca'
 import { PanelVenta } from './components/PanelVenta'
 import { ResumenArqueo } from './components/ResumenArqueo'
 import { Ticket } from './components/Ticket'
 import { centavosDesdePesos, pesosDesdeCentavos } from './formato'
+import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
 import { crearCaja } from './pos/caja'
 import type { Caja, EstadoCaja, PagoSolicitado, VentaCobrada } from './pos/caja'
 import { calcularTotales } from './pos/venta'
 import type { LineaDeVenta } from './pos/venta'
 
 /**
- * Una base por tenant: el nombre de la base local incluye al tenant porque la base local contiene
- * sólo su tenant y se purga al cerrar sesión (`0001` §6). El día que haya alta de tenants, este
- * nombre se deriva del tenant y no se escribe a mano.
+ * Tenant del demo: el mismo id nombra la base local, los eventos y la marca guardada, porque la
+ * base local contiene sólo su tenant y se purga al cerrar sesión (`0001` §6). El día que haya alta
+ * de tenants, este id se deriva de la sesión y no se escribe a mano.
  */
-export const NOMBRE_BASE = 'altoke-kiosco-1'
-export const TENANT_ID = 'kiosco-demo'
+export const TENANT_ID = 'kiosco-1'
+export const NOMBRE_BASE = `altoke-${TENANT_ID}`
 export const TERMINAL_ID = 'terminal-1'
 export const NOMBRE_TENANT = 'AlToke · Kiosco demo'
 
@@ -61,6 +64,15 @@ export function App({ store }: AppProps) {
   const [panelCierre, setPanelCierre] = useState(false)
   const [conteo, setConteo] = useState<ConteoPorDenominacion>({})
   const [ultimoCierre, setUltimoCierre] = useState<Arqueo | null>(null)
+
+  const [marca, setMarca] = useState<MarcaTenant>(() => cargarMarca(TENANT_ID))
+  const [panelMarca, setPanelMarca] = useState(false)
+
+  // La marca se aplica sobre la raíz y no sobre un componente: los tokens bañan el POS y el ticket
+  // a la vez, que es justo el contrato de las cinco variables (`0001` §7).
+  useEffect(() => {
+    aplicarMarca(marca)
+  }, [marca])
 
   useEffect(() => {
     let vigente = true
@@ -189,6 +201,16 @@ export function App({ store }: AppProps) {
     setConteo((previo) => ({ ...previo, [denominacion]: cantidad }))
   }
 
+  /** Una marca aceptada se aplica y se persiste: el tenant la encuentra al recargar la pestaña. */
+  function aceptarMarca(nueva: MarcaTenant): void {
+    guardarMarca(TENANT_ID, nueva)
+    setMarca(nueva)
+  }
+
+  function restablecerMarca(): void {
+    aceptarMarca(MARCA_INICIAL)
+  }
+
   async function confirmarCierre(): Promise<void> {
     if (caja === null) return
 
@@ -236,7 +258,9 @@ export function App({ store }: AppProps) {
         nombreTenant={NOMBRE_TENANT}
         terminalId={TERMINAL_ID}
         turno={estado.turno}
+        onAbrirMarca={() => setPanelMarca(true)}
         onCerrarCaja={() => setPanelCierre(true)}
+        logoUrl={marca.logoUrl}
       />
 
       {error !== null && (
@@ -269,6 +293,16 @@ export function App({ store }: AppProps) {
         </div>
       )}
 
+      {panelMarca && (
+        <PanelMarca
+          marca={marca}
+          nombreTenant={NOMBRE_TENANT}
+          onCambiar={aceptarMarca}
+          onRestablecer={restablecerMarca}
+          onCerrar={() => setPanelMarca(false)}
+        />
+      )}
+
       {panelCierre && estado.turno.abierto && (
         <PanelCierre
           denominaciones={DENOMINACIONES}
@@ -288,7 +322,12 @@ export function App({ store }: AppProps) {
       )}
 
       {venta !== null && (
-        <Ticket venta={venta} nombreTenant={NOMBRE_TENANT} terminalId={TERMINAL_ID} />
+        <Ticket
+          venta={venta}
+          nombreTenant={NOMBRE_TENANT}
+          terminalId={TERMINAL_ID}
+          logoUrl={marca.logoUrl}
+        />
       )}
     </div>
   )

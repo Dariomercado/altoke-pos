@@ -37,6 +37,16 @@
   text-align: center;
 }
 
+.ticket__logo {
+  display: block;
+  max-width: 100%;
+  max-height: 16mm;
+  margin: 0 auto var(--space-xs);
+  object-fit: contain;
+  /* En impresión térmica el logo sale en un solo color: sin degradados. */
+  filter: grayscale(1);
+}
+
 .ticket__marca {
   font-weight: 700;
 }

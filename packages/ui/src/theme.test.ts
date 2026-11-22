@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import tokensCss from './tokens.css?raw'
-import { MARCA_POR_DEFECTO, textoSobre, variablesDeMarca } from './theme'
+import {
+  HUECOS_DE_MARCA,
+  MARCA_POR_DEFECTO,
+  contraste as contrasteWCAG,
+  esContrasteLegible,
+  textoSobre,
+  variablesDeMarca,
+} from './theme'
 
 describe('variablesDeMarca', () => {
   it('expone los colores válidos como custom properties', () => {
@@ -44,6 +51,49 @@ describe('variablesDeMarca', () => {
 
   it('omite el logo cuando no se provee', () => {
     expect(variablesDeMarca({})['--brand-logo']).toBeUndefined()
+  })
+
+  it('emite fondo y tinta normalizados a seis dígitos minúscula', () => {
+    const vars = variablesDeMarca({ surface: '#FBF8FF', text: '#123' })
+
+    expect(vars['--brand-surface']).toBe('#fbf8ff')
+    expect(vars['--brand-text']).toBe('#112233')
+  })
+
+  it('omite fondo y tinta inválidos en vez de inventar un color', () => {
+    const vars = variablesDeMarca({ surface: 'blanco', text: '#1234567' })
+
+    expect(vars['--brand-surface']).toBeUndefined()
+    expect(vars['--brand-text']).toBeUndefined()
+  })
+})
+
+describe('textoSobre', () => {
+  it('usa tinta oscura sobre fondos claros y blanca sobre fondos oscuros', () => {
+    expect(textoSobre('#fbf8ff')).toBe('#17142b')
+    expect(textoSobre('#4f46e5')).toBe('#ffffff')
+  })
+
+  it('un color inválido cae al primario por defecto en vez de romper', () => {
+    expect(textoSobre('azul')).toBe(textoSobre(MARCA_POR_DEFECTO.primary))
+  })
+})
+
+describe('contraste', () => {
+  it('el máximo del estándar es negro sobre blanco', () => {
+    expect(contrasteWCAG('#000000', '#ffffff')).toBeCloseTo(21, 5)
+  })
+
+  it('un color contra sí mismo no tiene contraste', () => {
+    expect(contrasteWCAG('#4f46e5', '#4f46e5')).toBeCloseTo(1, 10)
+  })
+
+  it('acepta como legible un par de marca real', () => {
+    expect(esContrasteLegible('#17142b', '#fbf8ff')).toBe(true)
+  })
+
+  it('rechaza gris sobre gris claro', () => {
+    expect(esContrasteLegible('#9a9a9a', '#b0b0b0')).toBe(false)
   })
 })
 
@@ -310,6 +360,8 @@ describe('tokens.css — la marca del tenant sólo toca cinco variables', () => 
       '--brand-surface',
       '--brand-text',
     ])
+    // El CSS y el código que aplica la marca tienen que declarar los mismos cinco huecos.
+    expect([...HUECOS_DE_MARCA].sort()).toEqual(huecos)
   })
 })
 

@@ -1,6 +1,10 @@
 export interface MarcaTenant {
   readonly primary: string
   readonly accent: string
+  /** Fondo del local. Sólo se aplica si es un hex válido. */
+  readonly surface?: string
+  /** Tinta del local. Sólo se aplica si es un hex válido. */
+  readonly text?: string
   readonly logoUrl?: string
 }
 
@@ -8,6 +12,19 @@ export const MARCA_POR_DEFECTO: MarcaTenant = {
   primary: '#4f46e5',
   accent: '#0d9488',
 }
+
+/**
+ * Los cinco huecos que un tenant sobrescribe (`0001` §7). Es el contrato entre `tokens.css` y las
+ * apps: el resto de la paleta se deriva de estos, así que la lista no se escribe de nuevo en la
+ * app.
+ */
+export const HUECOS_DE_MARCA = [
+  '--brand-primary',
+  '--brand-accent',
+  '--brand-surface',
+  '--brand-text',
+  '--brand-logo',
+] as const
 
 /** Texto oscuro sobre fondos claros, y blanco sobre fondos oscuros. */
 const TEXTO_OSCURO = '#17142b'
@@ -20,8 +37,12 @@ const HEX_CORTO = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i
 const HEX_LARGO = /^#[0-9a-f]{6}$/i
 const LOGO_PERMITIDO = /^(https?:\/\/|data:image\/)/i
 
-function normalizarColor(valor: unknown, porDefecto: string): string {
-  if (typeof valor !== 'string') return porDefecto
+/** Mínimo de WCAG AA para texto normal: por debajo, la marca se rechaza. */
+export const CONTRASTE_MINIMO = 4.5
+
+/** Color hex normalizado (seis dígitos minúscula), o `undefined` si el valor no es un hex. */
+export function normalizarColorDeMarca(valor: unknown): string | undefined {
+  if (typeof valor !== 'string') return undefined
 
   const limpio = valor.trim()
 
@@ -33,7 +54,11 @@ function normalizarColor(valor: unknown, porDefecto: string): string {
     return `#${r}${r}${g}${g}${b}${b}`
   }
 
-  return HEX_LARGO.test(limpio) ? limpio.toLowerCase() : porDefecto
+  return HEX_LARGO.test(limpio) ? limpio.toLowerCase() : undefined
+}
+
+function normalizarColor(valor: unknown, porDefecto: string): string {
+  return normalizarColorDeMarca(valor) ?? porDefecto
 }
 
 function normalizarLogo(valor: unknown): string | undefined {
@@ -48,6 +73,34 @@ function canalLineal(octeto: string): number {
   return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4
 }
 
+/** Luminancia relativa WCAG de un color. Un valor inválido cae al primario por defecto. */
+function luminanciaRelativa(color: string): number {
+  const hex = normalizarColor(color, MARCA_POR_DEFECTO.primary)
+
+  return (
+    0.2126 * canalLineal(hex.slice(1, 3)) +
+    0.7152 * canalLineal(hex.slice(3, 5)) +
+    0.0722 * canalLineal(hex.slice(5, 7))
+  )
+}
+
+/**
+ * Ratio de contraste WCAG entre dos colores: 1 (iguales) a 21 (negro sobre blanco).
+ *
+ * Es la única cuenta de contraste del proyecto: el guard de la marca, `textoSobre` y los tests de
+ * `tokens.css` salen de acá.
+ */
+export function contraste(colorA: string, colorB: string): number {
+  const a = luminanciaRelativa(colorA)
+  const b = luminanciaRelativa(colorB)
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+}
+
+/** ¿El par se lee? Mismo umbral AA (4.5:1) que usa `tokens.css`. */
+export function esContrasteLegible(texto: string, fondo: string): boolean {
+  return contraste(texto, fondo) >= CONTRASTE_MINIMO
+}
+
 /**
  * Texto legible sobre un color de marca arbitrario.
  *
@@ -56,14 +109,7 @@ function canalLineal(octeto: string): number {
  * marca y uno que se rompe en la primera reunión.
  */
 export function textoSobre(color: string): string {
-  const hex = normalizarColor(color, MARCA_POR_DEFECTO.primary)
-
-  const luminancia =
-    0.2126 * canalLineal(hex.slice(1, 3)) +
-    0.7152 * canalLineal(hex.slice(3, 5)) +
-    0.0722 * canalLineal(hex.slice(5, 7))
-
-  return luminancia > UMBRAL_LUMINANCIA ? TEXTO_OSCURO : TEXTO_CLARO
+  return luminanciaRelativa(color) > UMBRAL_LUMINANCIA ? TEXTO_OSCURO : TEXTO_CLARO
 }
 
 /** Variables CSS que un tenant puede sobrescribir. Todo lo demás es derivado. */
@@ -77,6 +123,13 @@ export function variablesDeMarca(marca: Partial<MarcaTenant> | undefined): Recor
     '--brand-on-primary': textoSobre(primary),
     '--brand-on-accent': textoSobre(accent),
   }
+
+  // Fondo y tinta los elige el tenant: un valor inválido se omite (y `aplicarMarca` borra la
+  // variable) para que el tema quede con lo de `tokens.css` en vez de aplicar basura.
+  const surface = normalizarColorDeMarca(marca?.surface)
+  const text = normalizarColorDeMarca(marca?.text)
+  if (surface !== undefined) variables['--brand-surface'] = surface
+  if (text !== undefined) variables['--brand-text'] = text
 
   const logo = normalizarLogo(marca?.logoUrl)
   if (logo !== undefined) variables['--brand-logo'] = logo
