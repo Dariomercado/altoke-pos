@@ -28,3 +28,11 @@ export type {
   StockPorSku,
   VentaEnTurno,
 } from './eventos'
+
+export {
+  DENOMINACIONES,
+  armarArqueo,
+  arqueoDesdeTurno,
+  contarDenominaciones,
+} from './arqueo'
+export type { Arqueo, ConteoPorDenominacion, EstadoArqueo } from './arqueo'
