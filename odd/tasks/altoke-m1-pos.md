@@ -31,13 +31,14 @@ Specs de referencia: `docs/specs/0001-arquitectura.md` y `docs/specs/0002-fiscal
 | T4 | Dominio: libro de eventos + proyecciones (stock, total de turno) | S3 | inline | `9fb12b6` |
 | T5 | Dominio: arqueo de caja por denominación | S4 | inline | `20f6f98` |
 | T6 | Puerto `PosStore` + adaptador en memoria (tests) + adaptador IndexedDB (web real) + suite única de contrato | S3, S8 | inline | `d7ea003` |
-| T7 | POS: cobrar contra el store, totales reales, ticket de 80 mm | S1, S4 | inline | ⬜ |
+| T7 | POS: cobrar contra el store, totales reales, ticket de 80 mm | S1, S4 | inline + worker | `c583afd` `8248a64` |
 | T8 | Branding en vivo: 5 variables por tenant, preview del POS y del ticket | S2 | inline | ⬜ |
 
-**Corte de entrega:** la rama `feat/m1-pos-kiosco` acumula T1..T6 en ~2.698 líneas de autoría, por
+**Corte de entrega:** la rama `feat/m1-pos-kiosco` acumula T1..T7 en ~5.046 líneas de autoría, por
 encima de la rebanada de ~400. Cada tarea es un commit independiente y revisable solo; la entrega se
-corta en cadena (T1 → T2 → T3 → T4 → T5 → T6 → …) en lugar de un único PR. Fronteras de rebanada:
-`81601a7` (T1), `507c250` (T2), `c35216d` (T3), `9fb12b6` (T4), `20f6f98` (T5), `d7ea003` (T6).
+corta en cadena (T1 → … → T7) en lugar de un único PR. Fronteras de rebanada: `81601a7` (T1),
+`507c250` (T2), `c35216d` (T3), `9fb12b6` (T4), `20f6f98` (T5), `d7ea003` (T6), `c583afd` (T7
+lógica), `8248a64` (T7 pantalla), `0c57dcc` (fix del billete de 5.000).
 
 **Deuda que T6 deja anotada para T7** (hallazgos de la verificación independiente, todos fuera del
 puerto):
@@ -117,3 +118,18 @@ Aclaración: el piloto **no** es una prueba previa al primer cliente — el pilo
 cliente. El folleto va después del piloto, porque necesita su foto y su frase.
 
 Consecuencia sobre el plan: sin persistencia no hay piloto posible. IndexedDB entra en M1 (ver T6).
+
+### L7 — Decisiones de plan al implementar T7
+
+Consecuencias de construir el POS que no estaban en la tabla:
+
+1. **El arqueo tiene UI mínima dentro de T7.** T5 entrega el arqueo como cálculo puro; sin una
+   pantalla de cierre queda código muerto. Se agregó el panel "Cerrar caja" con un input por
+   denominación y el resultado del arqueo.
+2. **Anular venta no tiene pantalla en M1.** `caja.anular` existe y está testeado, pero el flujo de
+   anulación no está en S1/S4 y agregarlo sin un caso de uso concreto sería inventar producto.
+3. **La marca editable es de cinco huecos** (`--brand-primary`, `--brand-accent`, `--brand-surface`,
+   `--brand-text`, `--brand-logo`). Fondo y tinta se validan por contraste: un par ilegible se
+   rechaza en vez de dejar el POS gris sobre gris.
+4. **Una base IndexedDB por tenant** (`altoke-kiosco-1`), como pide `0001` §6: la base local contiene
+   sólo su tenant y se purga al cerrar sesión. El cableado vive en `apps/web`, no en el adaptador.
