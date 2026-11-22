@@ -19,12 +19,13 @@ import type { ResumenTurno } from './eventos'
 /**
  * Denominaciones en circulación, en centavos y de mayor a menor.
  *
- * Billetes: 10.000, 2.000, 1.000, 500, 200, 100, 50, 20 y 10 pesos. Monedas: 10, 5, 2 y 1 peso y
- * las fracciones que todavía circulan. El billete y la moneda de 10 pesos valen lo mismo y se
- * cuentan juntos: para el arqueo importa el valor, no el material.
+ * Billetes: 10.000, 5.000, 2.000, 1.000, 500, 200, 100, 50, 20 y 10 pesos. Monedas: 10, 5, 2 y 1
+ * peso y las fracciones que todavía circulan. El billete y la moneda de 10 pesos valen lo mismo y
+ * se cuentan juntos: para el arqueo importa el valor, no el material.
  */
 export const DENOMINACIONES: readonly Centavos[] = Object.freeze([
   1_000_000,
+  500_000,
   200_000,
   100_000,
   50_000,

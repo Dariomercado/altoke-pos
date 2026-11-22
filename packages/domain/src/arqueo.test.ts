@@ -37,7 +37,7 @@ describe('DENOMINACIONES', () => {
   })
 
   it('incluye los billetes y monedas que un kiosco cuenta hoy', () => {
-    for (const valorCentavos of [1_000_000, 200_000, 100_000, 50_000, 20_000, 10_000, 1_000, 500, 100]) {
+    for (const valorCentavos of [1_000_000, 500_000, 200_000, 100_000, 50_000, 20_000, 10_000, 1_000, 500, 100]) {
       expect(DENOMINACIONES, `falta ${valorCentavos / 100}`).toContain(valorCentavos)
     }
   })
