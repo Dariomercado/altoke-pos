@@ -1,0 +1,19 @@
+{
+  "version": 2,
+  "skills": {
+    "frontend-design": {
+      "source": "vercel-labs/open-agents",
+      "commit": "cf865e94de7729751c747171785b6ce57e7b178c",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/frontend-design/SKILL.md",
+      "computedHash": "e096e0563684970eba6a7a29d9f6801d03f0d7fe4ce5e938befb21256394f72c"
+    },
+    "web-animation-design": {
+      "source": "vercel-labs/open-agents",
+      "commit": "cf865e94de7729751c747171785b6ce57e7b178c",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/web-animation-design/SKILL.md",
+      "computedHash": "5ab3163ce37913cb01408ca0621df49aa920bc87140fa3b3d5092f2d9c1cd624"
+    }
+  }
+}
