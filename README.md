@@ -43,14 +43,33 @@ clear the site storage for localhost.
 
 ### The API
 
-M2 adds `apps/api` (Fastify + Postgres) for sync and auth. It needs a database:
+M2 adds `apps/api` (Fastify + Postgres) for sync and auth. It needs a database and one environment
+variable; there is no `.env` to create for local work.
 
 ```bash
-pnpm db:up        # Postgres 16 on port 5435, database/user altoke
-pnpm db:migrate   # applies apps/api/migrations in order
-pnpm dev:api      # the API on http://localhost:3001, GET /salud reports the database
+pnpm db:up                      # Postgres 16 on port 5435, database/user altoke
+DATABASE_URL=postgres://altoke:altoke@localhost:5435/altoke pnpm db:migrate
+DATABASE_URL=postgres://altoke_app:altoke_app@localhost:5435/altoke pnpm dev:api
+
+curl -s localhost:3001/salud    # {"ok":true,"db":"up"}
 pnpm db:down
 ```
+
+The POS reaches the API through the Vite dev proxy (`/api` → `localhost:3001`), so `pnpm dev` alone
+is enough: no environment file, no `CORS_ORIGINS`, on whatever port Vite picks. Set `VITE_API_URL`
+only to aim the web somewhere else; without it the app uses the proxy in development and
+`https://api.altoke.app` in a build. Variables, in full:
+
+| Where | Variable | Required | Default |
+| ----- | -------- | -------- | ------- |
+| web | `VITE_API_URL` | no | dev: the `/api` proxy · build: `https://api.altoke.app` |
+| api | `DATABASE_URL` | **yes** | — |
+| api | `MIGRATIONS_DATABASE_URL` | no | `DATABASE_URL` |
+| api | `PORT` | no | `3001` |
+| api | `CORS_ORIGINS` | no | empty: no browser origin is allowed |
+
+Logging in needs an account: use **Crear la cuenta de mi kiosco** on the login screen the first
+time. There is no seed and no transactional email in M2.
 
 Migrations run as the database owner; the API connects as `altoke_app`, a role without ownership or
 DDL, so row-level security actually isolates tenants instead of being decorative. `MIGRATIONS_DATABASE_URL`

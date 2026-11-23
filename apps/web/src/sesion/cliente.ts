@@ -130,14 +130,41 @@ export function crearClienteDeSesion(opciones: OpcionesClienteDeSesion): Cliente
   }
 }
 
-/** La API configurada por entorno; el origen público es el de `0003` §Infraestructura. */
-export function baseUrlDesdeEntorno(): string {
-  const env = (
-    import.meta as ImportMeta & { readonly env?: Readonly<Record<string, string | undefined>> }
-  ).env
-  const configurada = env?.['VITE_API_URL']?.trim()
+/** La API pública de `0003` §Infraestructura: la web vive en `slug.altoke.app` y la API en `api.` */
+export const API_PUBLICA = 'https://api.altoke.app'
 
-  return configurada === undefined || configurada === '' ? 'https://api.altoke.app' : configurada
+/**
+ * En desarrollo la web no necesita archivo de entorno: el proxy de Vite (`vite.config.ts`) manda
+ * `/api` al API local, así que un `pnpm dev` a secas ya habla con la base de tu máquina.
+ */
+export const RUTA_API_EN_DESARROLLO = '/api'
+
+type EntornoDelCliente = Readonly<Record<string, string | boolean | undefined>>
+
+/**
+ * La API configurada por entorno.
+ *
+ * Sin `VITE_API_URL`, el default **depende del entorno**: en producción es el subdominio público y
+ * en desarrollo es la ruta del proxy. Un solo default (el de producción) hacía que un `pnpm dev`
+ * sin configurar nada mandara el login a `api.altoke.app` y el navegador lo mostrara como "no se
+ * pudo hablar con el servidor", que es un error de red mentiroso: la API nunca estuvo en juego.
+ */
+export function baseUrlDesdeEntorno(env: EntornoDelCliente = entornoDeVite()): string {
+  const configurada = leerTexto(env['VITE_API_URL'])
+  if (configurada !== undefined) return configurada
+
+  return env['DEV'] === true ? RUTA_API_EN_DESARROLLO : API_PUBLICA
+}
+
+function leerTexto(valor: string | boolean | undefined): string | undefined {
+  if (typeof valor !== 'string') return undefined
+  const recortado = valor.trim()
+
+  return recortado === '' ? undefined : recortado
+}
+
+function entornoDeVite(): EntornoDelCliente {
+  return (import.meta as ImportMeta & { readonly env?: EntornoDelCliente }).env ?? {}
 }
 
 function respuestaInvalida(): { readonly ok: false; readonly error: ErrorDeSesion } {

@@ -27,7 +27,7 @@ import {
 import type { CadenaDeMigraciones } from '@altoke/domain'
 import { crearPool } from './db.ts'
 import type { FuenteDeConexiones } from './db.ts'
-import { traerEventos } from './eventos.ts'
+import { traerEventos, MENSAJE_CONFLICTO_CUERPO, MENSAJE_CONFLICTO_SECUENCIA } from './eventos.ts'
 import { aplicarMigraciones, leerMigraciones } from './migraciones.ts'
 import { hashPassword } from './password.ts'
 import { crearServidor } from './servidor.ts'
@@ -283,7 +283,8 @@ describe.skipIf(sinBase)('sync contra Postgres', () => {
     expect(respuesta['conflictos']).toHaveLength(1)
     const conflicto = (respuesta['conflictos'] as readonly Cuerpo[])[0]
     expect(conflicto?.['secuencia']).toBe(1)
-    expect(String(conflicto?.['motivo'])).not.toBe('')
+    // Lo que está tomado es la secuencia, no el id: el que llega es nuevo y el guardado manda.
+    expect(conflicto?.['motivo']).toBe(MENSAJE_CONFLICTO_SECUENCIA)
 
     // El servidor no reescribe: la fila sigue con el primer cuerpo, no con el que llegó después.
     const filas = await filasDe(cuenta.tenant.id, terminal)
@@ -293,6 +294,21 @@ describe.skipIf(sinBase)('sync contra Postgres', () => {
       delta: 5,
       causa: 'compra',
     })
+  })
+
+  it('la misma (terminal, secuencia) y el mismo id con otro cuerpo dice que cambió el cuerpo', async () => {
+    const cuenta = await registrar('conflicto-cuerpo')
+    const terminal = `caja-${sufijo}-2b`
+    const original = evento(cuenta.tenant.id, terminal, 1, { sku: 'alfajor', delta: 5 })
+    await empujar(cuenta.token, terminal, [original])
+
+    const respuesta = await empujar(cuenta.token, terminal, [{ ...original, delta: -5 }])
+
+    expect(respuesta['conflictos']).toHaveLength(1)
+    const conflicto = (respuesta['conflictos'] as readonly Cuerpo[])[0]
+    expect(conflicto?.['secuencia']).toBe(1)
+    // Mismo id y otro cuerpo no es «id ajeno»: la secuencia es la misma fila y lo que cambió es esto.
+    expect(conflicto?.['motivo']).toBe(MENSAJE_CONFLICTO_CUERPO)
   })
 
   it('un id reusado en otra secuencia se rechaza en vez de pisar el evento que ya existe', async () => {

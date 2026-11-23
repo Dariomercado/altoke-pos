@@ -51,6 +51,9 @@ export const MENSAJE_CONFLICTO_CUERPO =
   'La secuencia ya existe con otro cuerpo: el servidor guarda el primero y no lo reescribe.'
 export const MENSAJE_CONFLICTO_ID =
   'Ese id ya lo usa otro evento: el servidor nunca reescribe un evento.'
+/** La secuencia está tomada por **otro** evento: el id que llega es nuevo y no es el problema. */
+export const MENSAJE_CONFLICTO_SECUENCIA =
+  'Esa secuencia ya la usa otro evento: el servidor nunca reescribe un evento.'
 
 export type Referencia = { readonly id: string; readonly secuencia: number }
 export type Conflicto = Referencia & { readonly motivo: string }
@@ -233,7 +236,7 @@ async function compararConLoGuardado(
 
   return {
     tipo: 'conflicto',
-    motivo: mismoId ? MENSAJE_CONFLICTO_CUERPO : MENSAJE_CONFLICTO_ID,
+    motivo: mismoId ? MENSAJE_CONFLICTO_CUERPO : MENSAJE_CONFLICTO_SECUENCIA,
   }
 }
 

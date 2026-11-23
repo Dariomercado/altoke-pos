@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { crearPool } from './db.ts'
+import { MAXIMO_INTENTOS_POR_DEFECTO } from './limite-de-intentos.ts'
 import type { FuenteDeConexiones } from './db.ts'
 import { aplicarMigraciones, leerMigraciones } from './migraciones.ts'
 import { hashPassword } from './password.ts'
@@ -623,4 +624,90 @@ describe.skipIf(sinBase)('auth contra Postgres', () => {
     )
     expect(filas.rows).toHaveLength(1)
   })
+
+  it('con dos membresías la sesión usa el tenant más antiguo y X-Tenant elige el otro rol', async () => {
+    const viejo = await registrar('multi-viejo')
+    const nuevo = await registrar('multi-nuevo')
+
+    // El mismo usuario, cajero en el tenant viejo y admin en el nuevo.
+    const usuarioId = await crearMiembro(viejo.tenant.id, 'multi', 'cajero')
+    await duenio.query(`INSERT INTO membresias (usuario_id, tenant_id, rol) VALUES ($1, $2, $3)`, [
+      usuarioId,
+      nuevo.tenant.id,
+      'admin',
+    ])
+    // El default se elige por antigüedad del **tenant**, no por el orden de la membresía: lo fijo en
+    // el reloj para que el test no dependa de dos `now()` distintos por microsegundos.
+    await duenio.query(`UPDATE tenants SET creado_en = now() - interval '1 hour' WHERE id = $1`, [
+      viejo.tenant.id,
+    ])
+
+    const login = await app.inject({
+      method: 'POST',
+      url: '/auth/sesion',
+      payload: { email: email('multi'), password: PASSWORD },
+    })
+    expect(login.statusCode, login.body).toBe(200)
+
+    const sesion = login.json() as { token: string; tenant: { id: string }; rol: string }
+    expect(sesion.tenant.id, 'el default es el tenant más antiguo').toBe(viejo.tenant.id)
+    expect(sesion.rol).toBe('cajero')
+
+    // El rol sale de la membresía del tenant que se atiende: `cajero` no crea terminales…
+    const sinTenant = await app.inject({
+      method: 'POST',
+      url: `/tenants/${viejo.tenant.slug}/terminales`,
+      headers: bearer(sesion.token),
+      payload: { nombre: 'Caja 2', sucursal: 'Principal' },
+    })
+    // Con más de una membresía el servidor no elige por su cuenta ni siquiera con default en la
+    // sesión: `X-Tenant` es obligatorio, y lo dice como validación, no como falta de permiso.
+    expect(sinTenant.statusCode, sinTenant.body).toBe(400)
+    expect(sinTenant.json().error.detalle.campo).toBe('X-Tenant')
+
+    const sinPermiso = await app.inject({
+      method: 'POST',
+      url: `/tenants/${viejo.tenant.slug}/terminales`,
+      headers: { ...bearer(sesion.token), 'x-tenant': viejo.tenant.slug },
+      payload: { nombre: 'Caja 2', sucursal: 'Principal' },
+    })
+    expect(sinPermiso.statusCode, sinPermiso.body).toBe(403)
+
+    // …y el mismo token con `X-Tenant` es `admin` en el otro tenant.
+    const conPermiso = await app.inject({
+      method: 'POST',
+      url: `/tenants/${nuevo.tenant.slug}/terminales`,
+      headers: { ...bearer(sesion.token), 'x-tenant': nuevo.tenant.slug },
+      payload: { nombre: 'Caja 2', sucursal: 'Principal' },
+    })
+    expect(conPermiso.statusCode, conPermiso.body).toBe(201)
+  })
+
+  it('el login se frena después de demasiados intentos fallidos para el mismo email', async () => {
+    await registrar('limite')
+
+    for (let intento = 1; intento <= MAXIMO_INTENTOS_POR_DEFECTO; intento += 1) {
+      const fallo = await app.inject({
+        method: 'POST',
+        url: '/auth/sesion',
+        payload: { email: email('limite'), password: 'no-es-la-contraseña' },
+      })
+      expect(fallo.statusCode, `intento ${intento}: ${fallo.body}`).toBe(401)
+    }
+
+    // La contraseña correcta tampoco entra: el bloqueo es del par (email, cliente), no del intento.
+    const bloqueado = await app.inject({
+      method: 'POST',
+      url: '/auth/sesion',
+      payload: { email: email('limite'), password: PASSWORD },
+    })
+    expect(bloqueado.statusCode, bloqueado.body).toBe(429)
+    expect(bloqueado.json().error.code).toBe('demasiados_intentos')
+    expect(String(bloqueado.json().error.mensaje)).toContain('Demasiados intentos')
+
+    // Otro email del mismo local no queda castigado por el ataque a este.
+    const otro = await registrar('limite-otro')
+    expect(otro.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  })
+
 })

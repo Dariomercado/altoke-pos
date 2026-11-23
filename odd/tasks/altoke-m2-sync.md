@@ -144,3 +144,34 @@ test a nivel ruta; y el savepoint de sucursal no hace `RELEASE`.
 
 Rama `feat/m2-sync`, 13 commits, ~14.700 líneas escritas. PR abierta contra `main`; el merge es decisión
 del humano, igual que en M1.
+
+### L7 — Después de la verificación: dev-DX y cuatro de los seis follow-ups
+
+El humano probó el sitio y el login falló con "No se pudo hablar con el servidor. Failed to fetch".
+No era la lógica: no había API escuchando y `baseUrlDesdeEntorno` caía por defecto en
+`https://api.altoke.app` también en desarrollo, así que el navegador hablaba con un dominio que no
+existe. Tres defectos de arranque, ningún test que los nombrara.
+
+Cuatro de los seis follow-ups de L5 quedaron cerrados, cada uno en su commit:
+
+- `4e58418` **dev-DX**: en desarrollo la API es `/api` y el proxy de Vite la reenvía a
+  `localhost:3001` sacando el `Origin`; un build sigue usando `api.altoke.app` y `VITE_API_URL` sigue
+  ganando en todos lados. `pnpm dev` ya no necesita archivo de entorno ni `CORS_ORIGINS`. Documentadas
+  las cinco variables; `apps/api/README.md` dejó de afirmar que había un `.env.example` versionado.
+- `3c04ec8` **savepoint de sucursal**: ahora se libera en los dos caminos.
+- `5ca6666` **motivo de conflicto**: con la secuencia tomada por otro `id` el servidor ya no dice que
+  el id está usado; dice que la secuencia está tomada.
+- `9a18000` **tenant por defecto a nivel ruta**: una sesión con dos membresías recibe 400 sin
+  `X-Tenant`, 403 con la membresía de `cajero` y 201 con la de `admin`, con el mismo token.
+- `a03fc63` **rate limit del login**: 10 fallos por (email, cliente) abren 5 minutos de
+  `demasiados_intentos`, contados antes de tocar la base, en memoria y por proceso.
+
+Verificación: `tsc --noEmit` y `eslint` limpios, **532/532 tests** contra el Postgres real. Un run
+completo bajo carga (con `tsc` en paralelo) dio 6 rojos en `rls`, `sobreventa-postgres` y
+`sync-postgres` que no se reproducen solos ni en un run limpio: los tests que comparten una sola base
+son inestables bajo contención. Queda anotado, no escondido.
+
+**Los dos follow-ups de esquema quedan fuera de M2** y van en una rama aparte contra `main`, decisión
+del humano: `eventos.id` único por tenant (hoy un id ajeno delata que existe en otro tenant) y sacar
+`UPDATE`/`DELETE` al rol de runtime sobre `eventos` (hoy "nada se reescribe" lo sostiene el código y no
+el privilegio). Los dos son migración y riesgo alto, y no tienen por qué viajar con la lógica de M2.
