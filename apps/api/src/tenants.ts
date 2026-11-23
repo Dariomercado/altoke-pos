@@ -137,7 +137,8 @@ async function buscarSucursalPorNombre(
  * `(tenant_id, lower(nombre))` deja ganar a uno. El perdedor **relee la fila ganadora** en vez de
  * propagar un `23505` que el cliente no puede arreglar (para él no hay ningún dato duplicado, sólo
  * una sucursal que ya existía). El `SAVEPOINT` es lo que permite releer: un `23505` sin savepoint
- * deja la transacción entera abortada.
+ * deja la transacción entera abortada. Y se libera siempre: un savepoint abierto deja una subtramo
+ * que nadie va a cerrar, y la transacción del pedido sigue viva después de esto.
  */
 export async function asegurarSucursal(
   conexion: Consultable,
@@ -155,12 +156,14 @@ export async function asegurarSucursal(
         [tenantId, nombre],
       ),
     )
+    await conexion.query('RELEASE SAVEPOINT sucursal')
     return { id: String(fila['id']), nombre: String(fila['nombre']) }
   } catch (error) {
     if (restriccionUnica(error) === undefined) throw error
 
     await conexion.query('ROLLBACK TO SAVEPOINT sucursal')
     const ganadora = await buscarSucursalPorNombre(conexion, tenantId, nombre)
+    await conexion.query('RELEASE SAVEPOINT sucursal')
     // Si la violación no era por el nombre, no hay fila que reusar: el error es real.
     if (ganadora === undefined) throw error
     return ganadora
