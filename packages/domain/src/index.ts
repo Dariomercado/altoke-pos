@@ -1,12 +1,14 @@
 // Dominio puro de AlToke (invariante I1): sin IO, sin React, sin otros paquetes del workspace.
+// Los imports relativos llevan la extensión `.ts`: además de `apps/web` (Vite) lo consume
+// `apps/api`, que corre sus `.ts` con el type stripping de Node y no resuelve sin extensión.
 export {
   ALICUOTAS_IVA,
   desglosarIva,
   esCentavos,
   importeConIva,
   redondearMitadArriba,
-} from './dinero'
-export type { AlicuotaBps, Centavos } from './dinero'
+} from './dinero.ts'
+export type { AlicuotaBps, Centavos } from './dinero.ts'
 
 export {
   MEDIOS_PAGO,
@@ -16,7 +18,7 @@ export {
   proyectar,
   resumirTurno,
   validarEvento,
-} from './eventos'
+} from './eventos.ts'
 export type {
   EstadoTurno,
   EstadoVenta,
@@ -27,12 +29,12 @@ export type {
   ResumenTurno,
   StockPorSku,
   VentaEnTurno,
-} from './eventos'
+} from './eventos.ts'
 
 export {
   DENOMINACIONES,
   armarArqueo,
   arqueoDesdeTurno,
   contarDenominaciones,
-} from './arqueo'
-export type { Arqueo, ConteoPorDenominacion, EstadoArqueo } from './arqueo'
+} from './arqueo.ts'
+export type { Arqueo, ConteoPorDenominacion, EstadoArqueo } from './arqueo.ts'

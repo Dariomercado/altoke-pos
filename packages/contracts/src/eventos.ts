@@ -21,9 +21,9 @@
 
 import { z } from 'zod'
 import { MEDIOS_PAGO } from '@altoke/domain'
-import { centavos, entero, enteroPositivo, texto } from './campos'
-import { parsear } from './parseo'
-import type { Resultado } from './errores'
+import { centavos, entero, enteroPositivo, texto } from './campos.ts'
+import { parsear } from './parseo.ts'
+import type { Resultado } from './errores.ts'
 
 /** La versión de schema que este código sabe leer: en M2 sólo existe v1 (0003 §schemaVersion). */
 export const SCHEMA_VERSION_SOPORTADA = 1

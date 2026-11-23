@@ -5,7 +5,7 @@ import {
   parsearSyncEmpujarSolicitud,
   parsearSyncTraerConsulta,
   parsearSyncTraerRespuesta,
-} from './sync'
+} from './sync.ts'
 
 const TENANT = 'tenant-1'
 const TERMINAL = 'term-1'
@@ -151,7 +151,7 @@ describe('syncEmpujarRespuesta', () => {
 
 describe('syncTraerRespuesta', () => {
   it('hayMas ausente vale false', () => {
-    const resultado = parsearSyncTraerRespuesta({ eventos: [], acuse: ACUSE })
+    const resultado = parsearSyncTraerRespuesta({ eventos: [], acuse: ACUSE, siguienteDesde: null })
 
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) return
@@ -159,7 +159,12 @@ describe('syncTraerRespuesta', () => {
   })
 
   it('no coacciona hayMas desde un texto: `"true"` no es true', () => {
-    const resultado = parsearSyncTraerRespuesta({ eventos: [], acuse: ACUSE, hayMas: 'true' })
+    const resultado = parsearSyncTraerRespuesta({
+      eventos: [],
+      acuse: ACUSE,
+      hayMas: 'true',
+      siguienteDesde: null,
+    })
 
     expect(resultado.ok).toBe(false)
     if (resultado.ok) return
@@ -167,7 +172,12 @@ describe('syncTraerRespuesta', () => {
   })
 
   it('respeta un hayMas explícito', () => {
-    const resultado = parsearSyncTraerRespuesta({ eventos: [], acuse: ACUSE, hayMas: true })
+    const resultado = parsearSyncTraerRespuesta({
+      eventos: [],
+      acuse: ACUSE,
+      hayMas: true,
+      siguienteDesde: '2026-11-22T10:00:00.000Z',
+    })
 
     expect(resultado.ok).toBe(true)
     if (!resultado.ok) return
@@ -175,7 +185,12 @@ describe('syncTraerRespuesta', () => {
   })
 
   it('parsea los eventos que trae y los deja como eventos del libro', () => {
-    const respuesta = { eventos: [evento(4), evento(5)], acuse: ACUSE, hayMas: false }
+    const respuesta = {
+      eventos: [evento(4), evento(5)],
+      acuse: ACUSE,
+      hayMas: false,
+      siguienteDesde: null,
+    }
 
     const resultado = parsearSyncTraerRespuesta(respuesta)
 
@@ -183,6 +198,55 @@ describe('syncTraerRespuesta', () => {
     if (!resultado.ok) return
     const eventos: Evento[] = resultado.dato.eventos
     expect(eventos.map((e) => e.secuencia)).toEqual([4, 5])
+  })
+
+  it('siguienteDesde trae el `desde` de la página siguiente', () => {
+    const respuesta = {
+      eventos: [evento(1)],
+      acuse: ACUSE,
+      hayMas: true,
+      siguienteDesde: '2026-11-22T10:00:00.000Z',
+    }
+
+    const resultado = parsearSyncTraerRespuesta(respuesta)
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    expect(resultado.dato.siguienteDesde).toBe('2026-11-22T10:00:00.000Z')
+  })
+
+  it('siguienteDesde es null cuando no hay página siguiente, y null no es "falta el campo"', () => {
+    const resultado = parsearSyncTraerRespuesta({
+      eventos: [],
+      acuse: ACUSE,
+      hayMas: false,
+      siguienteDesde: null,
+    })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    expect(resultado.dato.siguienteDesde).toBeNull()
+  })
+
+  it('sin siguienteDesde la respuesta es inválida: el cliente no tiene con qué pedir la página siguiente', () => {
+    const resultado = parsearSyncTraerRespuesta({ eventos: [], acuse: ACUSE, hayMas: true })
+
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok) return
+    expect(resultado.error.error.detalle.campo).toBe('siguienteDesde')
+  })
+
+  it('rechaza un siguienteDesde que no es una fecha ISO-8601', () => {
+    const resultado = parsearSyncTraerRespuesta({
+      eventos: [],
+      acuse: ACUSE,
+      hayMas: true,
+      siguienteDesde: 'la semana que viene',
+    })
+
+    expect(resultado.ok).toBe(false)
+    if (resultado.ok) return
+    expect(resultado.error.error.detalle.campo).toBe('siguienteDesde')
   })
 })
 

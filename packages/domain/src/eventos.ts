@@ -17,8 +17,8 @@
  *     fiar, y persistir un monto con centavos fraccionarios corrompe el arqueo para siempre.
  */
 
-import { esCentavos } from './dinero'
-import type { Centavos } from './dinero'
+import { esCentavos } from './dinero.ts'
+import type { Centavos } from './dinero.ts'
 
 export const MEDIOS_PAGO = ['efectivo', 'tarjeta_manual', 'transferencia', 'qr'] as const
 export type MedioPago = (typeof MEDIOS_PAGO)[number]

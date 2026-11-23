@@ -10,10 +10,10 @@
  */
 
 import { z } from 'zod'
-import { enteroNoNegativo, enteroPositivo, texto } from './campos'
-import { esquemaEvento } from './eventos'
-import { parsear } from './parseo'
-import type { Resultado } from './errores'
+import { enteroNoNegativo, enteroPositivo, texto } from './campos.ts'
+import { esquemaEvento } from './eventos.ts'
+import { parsear } from './parseo.ts'
+import type { Resultado } from './errores.ts'
 
 /** Hasta dónde llegó el servidor con esa terminal. Cero es legítimo: nunca recibió nada. */
 const acuse = z.object({
@@ -81,11 +81,21 @@ export type SyncTraerConsulta = z.infer<typeof syncTraerConsulta>
  * `hayMas` ausente vale `false` y nada más: un `"true"` en texto no se coacciona. Una respuesta
  * vieja sin el campo significa "no hay más" sólo si el campo no vino; adivinar con coerción
  * haría que un `"false"` textual se leyera como paginación pendiente para siempre.
+ *
+ * `siguienteDesde` es el `desde` exacto con el que se pide la página siguiente, **o `null`** cuando
+ * no hay nada más. Es obligatorio y no se deriva del último evento: el cliente no tiene por qué
+ * reimplementar el cursor (y una página vacía o de borde lo dejaría sin nada sobre lo que apoyarse).
+ * Viaja como `null` explícito y no como ausente porque "el campo no vino" es exactamente la
+ * ambigüedad que `hayMas` ya paga: con el cursor, un ausente se leería como "no pidas más" y el
+ * cliente se quedaría con eventos sin traer.
  */
 export const syncTraerRespuesta = z.object({
   eventos: z.array(esquemaEvento, { error: 'eventos debe ser una lista de eventos.' }),
   acuse,
   hayMas: z.boolean({ error: 'hayMas tiene que ser booleano.' }).default(false),
+  siguienteDesde: z
+    .iso.datetime({ error: 'siguienteDesde debe ser una fecha ISO-8601 o null.' })
+    .nullable(),
 })
 
 export type SyncTraerRespuesta = z.infer<typeof syncTraerRespuesta>

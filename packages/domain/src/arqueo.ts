@@ -12,9 +12,9 @@
  * después por qué el turno cerró con 100.000 de sobrante.
  */
 
-import { esCentavos } from './dinero'
-import type { Centavos } from './dinero'
-import type { ResumenTurno } from './eventos'
+import { esCentavos } from './dinero.ts'
+import type { Centavos } from './dinero.ts'
+import type { ResumenTurno } from './eventos.ts'
 
 /**
  * Denominaciones en circulación, en centavos y de mayor a menor.

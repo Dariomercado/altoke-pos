@@ -10,8 +10,8 @@
  */
 
 import type { z } from 'zod'
-import { campoDelCamino } from './errores'
-import type { CuerpoDeErrorDeValidacion, Resultado } from './errores'
+import { campoDelCamino } from './errores.ts'
+import type { CuerpoDeErrorDeValidacion, Resultado } from './errores.ts'
 
 /** Sólo si un schema dejara un issue sin mensaje propio. */
 export const MENSAJE_VALIDACION = 'El pedido no es válido.'
