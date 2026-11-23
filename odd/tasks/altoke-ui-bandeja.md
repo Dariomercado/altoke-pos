@@ -153,3 +153,18 @@ La forma propuesta —decisión del humano, igual que el push y el PR— es enca
 commiteados: (1) `0214d09..5985f32` tokens + shadcn + guard, (2) `15c6d47..78ec884` venta + hoja de
 cobro, (3) `3f57101` cierre de caja, (4) `9ebb511` pantalla del ticket, (5) `5dc86dd..9eba372`
 movimiento + verificación.
+
+### L8 — Entrega
+
+Las dos PRs encadenadas se mergearon el 2026-11-23 y `main` quedó con el producto completo:
+
+- **#1** `feat/m1-pos-kiosco` → `main`, merge commit `f6ae71a`: el POS de M1.
+- **#2** `feat/ui-bandeja` → `main` (retargeteada después de #1), merge commit `d090f60`: este
+  rediseño, 12 commits.
+
+Se usó merge commit y no squash a propósito: con PRs apiladas, un squash reescribe los commits de la
+base y la PR de arriba vuelve a mostrar todo lo de abajo como si fuera suyo. El merge commit conserva
+los SHA y la segunda PR queda con su diff real.
+
+`main` en `d090f60`, árbol limpio, y los cuatro checks corridos **sobre el resultado mergeado**:
+typecheck, 210 tests en 17 archivos, lint y build en verde (457,21 kB / 146,61 kB gzip).
