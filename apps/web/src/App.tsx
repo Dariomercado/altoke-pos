@@ -293,7 +293,11 @@ export function App({ store }: AppProps) {
         logoUrl={marca.logoUrl}
       />
 
-      {error !== null && (
+      {/*
+       * Con el cierre abierto el aviso viaja adentro de esa capa: es la única visible, así que
+       * repetirlo arriba dejaría el error tapado o duplicado en el árbol.
+       */}
+      {error !== null && !panelCierre && (
         <p
           className={
             abierto ? 'pos__error mx-[var(--page-margin)] my-[var(--space-sm)]' : 'pos__error'
@@ -341,8 +345,8 @@ export function App({ store }: AppProps) {
       )}
 
       {/*
-       * Cierre, marca y ticket siguen con `pos.css` (T4 no los migra): en el turno abierto van
-       * apilados debajo de la bandeja, con el margen de página que antes ponía `.pos`.
+       * Marca y ticket siguen con `pos.css`: en el turno abierto van apilados debajo de la
+       * bandeja, con el margen de página que antes ponía `.pos`.
        */}
       <div
         className={
@@ -358,17 +362,6 @@ export function App({ store }: AppProps) {
             onCambiar={aceptarMarca}
             onRestablecer={restablecerMarca}
             onCerrar={() => setPanelMarca(false)}
-          />
-        )}
-
-        {panelCierre && estado.turno.abierto && (
-          <PanelCierre
-            denominaciones={DENOMINACIONES}
-            conteo={conteo}
-            arqueo={arqueoEnCurso}
-            onCambiarCantidad={cambiarConteo}
-            onConfirmar={confirmarCierre}
-            onCancelar={() => setPanelCierre(false)}
           />
         )}
 
@@ -388,6 +381,25 @@ export function App({ store }: AppProps) {
           />
         )}
       </div>
+
+      {/*
+       * El cierre (T7) es una pantalla, no un panel al costado de la venta: cuenta billete por
+       * billete en 1280×800 y deja el veredicto y las acciones al alcance del pulgar, así que vive
+       * en su propia capa (`fixed inset-0`) y no en el flujo de la bandeja.
+       */}
+      {panelCierre && estado.turno.abierto && (
+        <PanelCierre
+          denominaciones={DENOMINACIONES}
+          conteo={conteo}
+          arqueo={arqueoEnCurso}
+          turno={estado.turno}
+          error={error}
+          onCambiarCantidad={cambiarConteo}
+          onVaciar={() => setConteo({})}
+          onConfirmar={confirmarCierre}
+          onCancelar={() => setPanelCierre(false)}
+        />
+      )}
     </div>
   )
 }
