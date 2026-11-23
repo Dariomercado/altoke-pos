@@ -24,11 +24,13 @@ import { Encabezado } from './components/Encabezado'
 import { PanelCierre } from './components/PanelCierre'
 import { PanelMarca } from './components/PanelMarca'
 import { ResumenArqueo } from './components/ResumenArqueo'
+import { motion } from 'motion/react'
 import { HojaCobro } from './components/bandeja/HojaCobro'
 import { PantallaTicket } from './components/bandeja/PantallaTicket'
 import { PantallaVenta } from './components/bandeja/PantallaVenta'
 import { centavosDesdePesos, pesosDesdeCentavos } from './formato'
 import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
+import { entrada, useMovimiento } from './movimiento'
 import { crearCaja } from './pos/caja'
 import type { Caja, EstadoCaja, PagoSolicitado, VentaCobrada } from './pos/caja'
 import { calcularTotales } from './pos/venta'
@@ -70,6 +72,9 @@ export function App({ store }: AppProps) {
 
   const [marca, setMarca] = useState<MarcaTenant>(() => cargarMarca(TENANT_ID))
   const [panelMarca, setPanelMarca] = useState(false)
+
+  // M1: entrar a la venta es el primer momento animado (T8, `movimiento.ts`).
+  const conMovimiento = useMovimiento()
 
   // La marca se aplica sobre la raíz y no sobre un componente: los tokens bañan el POS y el ticket
   // a la vez, que es justo el contrato de las cinco variables (`0001` §7).
@@ -312,7 +317,10 @@ export function App({ store }: AppProps) {
 
       {abierto && (
         <>
-          <div className="h-[calc(100dvh-var(--size-header))] shrink-0">
+          <motion.div
+            {...entrada(conMovimiento, { desde: 'abajo' })}
+            className="h-[calc(100dvh-var(--size-header))] shrink-0"
+          >
             <PantallaVenta
               productos={CATALOGO}
               stock={estado.stock}
@@ -324,7 +332,7 @@ export function App({ store }: AppProps) {
               onVaciar={vaciarVenta}
               onCobrar={abrirCobro}
             />
-          </div>
+          </motion.div>
 
           {/*
            * La hoja de cobro sube sobre la venta y sobrevive cerrada: sus controles no se

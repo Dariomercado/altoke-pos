@@ -1,6 +1,8 @@
+import { motion } from 'motion/react'
 import { Banknote, Check, CreditCard } from 'lucide-react'
 import { Button } from '../ui/button'
 import { centavosDesdePesos, formatearCentavos, pesosDesdeCentavos } from '../../formato'
+import { pulso, useMovimiento } from '../../movimiento'
 import type { LineaDeVenta, TotalesVenta } from '../../pos/venta'
 
 /** Billetes que el cajero tiene a mano cuando cobra en efectivo, en pesos. */
@@ -81,6 +83,8 @@ export function HojaCobro({
   const alcanza = esTarjeta || alcanzaEfectivo
   const puedeConfirmar = lineas.length > 0 && alcanza
   const estadoHoja = abierta ? 'open' : 'closed'
+  // M2: el vuelto responde cuando cambia el monto, sin mover nada más de la hoja.
+  const conMovimiento = useMovimiento()
 
   const clasesVuelto = esTarjeta
     ? 'border-border bg-muted text-foreground'
@@ -245,9 +249,14 @@ export function HojaCobro({
                       ? 'Vuelto'
                       : 'Vuelto · falta efectivo'}
                 </span>
-                <b className="font-sans text-[2rem] font-bold leading-[2.5rem] tabular-nums">
+                <motion.b
+                  // La `key` sobre el monto es la que dispara el pulso: otra cifra, otro elemento.
+                  key={`${String(esTarjeta)}-${String(vueltoCentavos)}`}
+                  {...pulso(conMovimiento)}
+                  className="font-sans text-[2rem] font-bold leading-[2.5rem] tabular-nums"
+                >
                   {formatearCentavos(esTarjeta ? 0 : (vueltoCentavos ?? 0))}
-                </b>
+                </motion.b>
               </div>
 
               {!esTarjeta && !alcanzaEfectivo && (

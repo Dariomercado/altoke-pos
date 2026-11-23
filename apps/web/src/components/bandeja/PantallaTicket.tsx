@@ -1,6 +1,8 @@
+import { motion } from 'motion/react'
 import { Check, Plus, Printer } from 'lucide-react'
 import { Button } from '../ui/button'
 import { formatearCentavos } from '../../formato'
+import { entrada, useMovimiento } from '../../movimiento'
 import type { VentaCobrada } from '../../pos/caja'
 import { ETIQUETA_MEDIO, Ticket } from '../Ticket'
 
@@ -41,6 +43,8 @@ export function PantallaTicket({
   // El vuelto sólo existe si entró efectivo: con tarjeta no se da, y decirlo evita que el cajero
   // busque monedas para una cifra que no es cero por casualidad.
   const soloTarjeta = venta.pagos.every((pago) => pago.medio !== 'efectivo')
+  // M3: el resultado aparece —el tilde y el papel entran, el resto de la pantalla ya está.
+  const conMovimiento = useMovimiento()
 
   return (
     <section
@@ -48,12 +52,13 @@ export function PantallaTicket({
       className="pantalla-ticket fixed inset-x-0 bottom-0 top-[var(--size-header)] z-40 grid overflow-y-auto bg-background md:grid-cols-[minmax(0,1fr)_auto]"
     >
       <div className="flex flex-col gap-[var(--space-lg)] px-[var(--page-margin-desktop)] py-[var(--space-xl)]">
-        <span
+        <motion.span
           aria-hidden="true"
+          {...entrada(conMovimiento, { desde: 'ninguna', escalaInicial: 0.9, duracion: 'overlay' })}
           className="grid size-14 shrink-0 place-items-center rounded-full bg-success-soft text-success-soft-foreground"
         >
           <Check className="size-7" strokeWidth={2.5} />
-        </span>
+        </motion.span>
 
         <div>
           <h1 className="font-sans text-[2.5rem] font-bold leading-[3rem] tracking-[-0.03em]">
@@ -119,7 +124,10 @@ export function PantallaTicket({
         </span>
 
         {/* El papel y su festoneado son hermanos: los dientes se dibujan sobre el fondo del stage. */}
-        <div className="grid justify-items-center">
+        <motion.div
+          {...entrada(conMovimiento, { desde: 'ninguna', escalaInicial: 0.97, duracion: 'overlay' })}
+          className="grid justify-items-center"
+        >
           <Ticket
             venta={venta}
             nombreTenant={nombreTenant}
@@ -127,7 +135,7 @@ export function PantallaTicket({
             logoUrl={logoUrl}
           />
           <div aria-hidden="true" className="ticket-dientes" />
-        </div>
+        </motion.div>
       </aside>
     </section>
   )

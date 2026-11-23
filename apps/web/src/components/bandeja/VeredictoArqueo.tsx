@@ -1,6 +1,8 @@
+import { motion } from 'motion/react'
 import { CheckCircle2, TriangleAlert } from 'lucide-react'
 import type { Arqueo } from '@altoke/domain'
 import { formatearCentavos } from '../../formato'
+import { entrada, useMovimiento } from '../../movimiento'
 
 export interface VeredictoArqueoProps {
   readonly arqueo: Arqueo
@@ -22,9 +24,14 @@ export function VeredictoArqueo({ arqueo }: VeredictoArqueoProps) {
   const cuadrado = arqueo.estado === 'cuadrado'
   const monto = formatearCentavos(Math.abs(arqueo.diferenciaCentavos))
   const signo = arqueo.estado === 'sobrante' ? '+' : ''
+  // M3: el resultado aparece cuando el veredicto cambia de estado (T8, `movimiento.ts`).
+  const conMovimiento = useMovimiento()
 
   return (
-    <div
+    <motion.div
+      // Cambiar de estado remonta el bloque, y el remonte es la animación: no hay estado escondido.
+      key={arqueo.estado}
+      {...entrada(conMovimiento, { desde: 'ninguna', escalaInicial: 0.98, duracion: 'overlay' })}
       role="status"
       className={`grid gap-[var(--space-xs)] rounded-lg border p-[var(--space-md)] ${
         cuadrado
@@ -47,7 +54,7 @@ export function VeredictoArqueo({ arqueo }: VeredictoArqueoProps) {
       </b>
 
       <span className="text-xs leading-4">{textoDeAyuda(arqueo.estado, monto)}</span>
-    </div>
+    </motion.div>
   )
 }
 
