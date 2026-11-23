@@ -8,6 +8,11 @@
  *     entre el `SELECT` y el `INSERT` de un "si no existe, insertalo" cabe otra terminal.
  *   - **Nada se reescribe.** Un evento con la misma clave y otro cuerpo es un conflicto que se
  *     reporta; un `id` ya usado en otra secuencia se rechaza. La fila guardada nunca cambia.
+ *   - **Al leer se migra en memoria.** El cuerpo sale de `cuerpo jsonb` con la `schemaVersion` con
+ *     la que lo escribió la terminal y se pasa por la cadena compartida del dominio antes de
+ *     validarlo (`0003` §schemaVersion): la fila no se toca. Una fila de una versión que este
+ *     código no entiende **lanza** en vez de devolverse sin migrar: aplicarle las reglas de hoy
+ *     sería corrupción silenciosa, y saltearla perdería un evento.
  *   - **El acuse es el máximo contiguo**, no el máximo. Un hueco es dato que la terminal todavía
  *     debe: acusar más allá le diría que deje de reenviar eventos que nunca llegaron.
  *   - **`recibido_en` es el cursor de la traída y es único por tenant.** `now()` es el reloj de la
@@ -22,6 +27,8 @@
  * `tenant_id` explícito (0001 §6).
  */
 
+import { CADENA_DE_MIGRACIONES, migrarEvento } from '@altoke/domain'
+import type { CadenaDeMigraciones, Evento } from '@altoke/domain'
 import type { EventoSync } from '@altoke/contracts'
 import type { Consultable, ResultadoConsulta } from './db.ts'
 import { restriccionUnica } from './db.ts'
@@ -264,7 +271,7 @@ export async function registrarAcuse(
 }
 
 export type Traida = {
-  readonly eventos: readonly EventoSync[]
+  readonly eventos: readonly Evento[]
   readonly hayMas: boolean
   /** El `desde` de la página siguiente, o `null` si no hay más (0003 §Traer). */
   readonly siguienteDesde: string | null
@@ -275,17 +282,26 @@ export type OpcionesDeTraida = {
   /** La terminal que pide: sus propios eventos ya están en su libro, así que se excluyen. */
   readonly terminalId: string
   readonly desde: string | undefined
+  /**
+   * La cadena con la que se leen los cuerpos. Se inyecta en los tests: con la cadena real vacía
+   * no habría forma de comprobar que la traída migra de verdad (`migraciones.ts` del dominio).
+   */
+  readonly cadena?: CadenaDeMigraciones
 }
 
 /**
  * Los eventos del tenant posteriores al cursor, sin los de la terminal que pide, en el orden del
  * cursor del servidor `(recibido_en, id)`. Pide una fila de más: `hayMas` es la existencia de la
  * página siguiente, no una cuenta que pueda quedar desactualizada.
+ *
+ * Cada cuerpo se migra a la versión de hoy antes de devolverse (0003 §schemaVersion). Lo que está
+ * guardado no cambia: la fila conserva su `schema_version` y su cuerpo original.
  */
 export async function traerEventos(
   conexion: Consultable,
   opciones: OpcionesDeTraida,
 ): Promise<Traida> {
+  const cadena = opciones.cadena ?? CADENA_DE_MIGRACIONES
   const limite = LIMITE_PAGINA + 1
   const resultado =
     opciones.desde === undefined
@@ -302,7 +318,7 @@ export async function traerEventos(
   const ultima = pagina[pagina.length - 1]
 
   return {
-    eventos: pagina.map((fila) => fila['cuerpo'] as EventoSync),
+    eventos: pagina.map((fila) => migrarEvento(fila['cuerpo'], cadena)),
     hayMas,
     siguienteDesde: hayMas && ultima !== undefined ? aTexto(ultima['recibido']) : null,
   }

@@ -12,6 +12,7 @@ export type { AlicuotaBps, Centavos } from './dinero.ts'
 
 export {
   MEDIOS_PAGO,
+  SCHEMA_VERSION_ACTUAL,
   TERMINAL_DEL_SERVIDOR,
   TIPOS_DEL_SERVIDOR,
   esTipoDelServidor,
@@ -46,3 +47,11 @@ export {
   contarDenominaciones,
 } from './arqueo.ts'
 export type { Arqueo, ConteoPorDenominacion, EstadoArqueo } from './arqueo.ts'
+
+export {
+  CADENA_DE_MIGRACIONES,
+  MigracionAusente,
+  VersionDeSchemaFutura,
+  migrarEvento,
+} from './migraciones.ts'
+export type { CadenaDeMigraciones, CuerpoDeEvento, PasoDeMigracion } from './migraciones.ts'

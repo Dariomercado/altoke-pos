@@ -47,6 +47,16 @@ export function esTipoDelServidor(tipo: string): tipo is TipoDelServidor {
   return (TIPOS_DEL_SERVIDOR as readonly string[]).includes(tipo)
 }
 
+/**
+ * La versión de `schemaVersion` con la que este código escribe y la más nueva que sabe leer.
+ *
+ * Es la **única** fuente de verdad de la versión: `@altoke/contracts` deriva de acá su
+ * `SCHEMA_VERSION_SOPORTADA` y la cadena de migraciones (`migraciones.ts`) migra hasta acá, así
+ * subirla es un solo edit y no dos que pueden discrepar (0003 §schemaVersion, T7 de
+ * odd/tasks/altoke-m2-sync.md). En M2 sólo existe v1.
+ */
+export const SCHEMA_VERSION_ACTUAL = 1
+
 /** Lo que todo evento lleva, sin importar su tipo. */
 interface Envoltorio {
   /** ULID. Opaco para el dominio: sólo tiene que ser único y no vacío. */
@@ -57,7 +67,8 @@ interface Envoltorio {
   readonly secuencia: number
   /** ISO-8601. */
   readonly ocurridoEn: string
-  readonly schemaVersion: 1
+  /** La versión con la que se escribió: es la que la cadena de migraciones lee al abrir el libro. */
+  readonly schemaVersion: typeof SCHEMA_VERSION_ACTUAL
 }
 
 export type Evento = Envoltorio &
@@ -469,8 +480,13 @@ function exigirEntero(valor: unknown, campo: string): void {
  *
  * Un evento inválido que entra al libro no se puede distinguir después de un evento raro pero
  * legítimo: el arqueo queda mal para siempre y sin rastro del culpable.
+ *
+ * `versionEsperada` es la versión cuyas reglas se aplican: por defecto la actual, y la cadena de
+ * migraciones pasa la que alcanzó. Las reglas de un cuerpo no cambian con la versión por sí solas
+ * —las cambia una migración—, así que el default es lo que usa todo el mundo y el parámetro existe
+ * para que un evento migrado a `vN` se valide como `vN` y no como el `v1` de hoy.
  */
-export function validarEvento(evento: Evento): void {
+export function validarEvento(evento: Evento, versionEsperada: number = SCHEMA_VERSION_ACTUAL): void {
   exigirTexto(evento.id, 'id')
   exigirTexto(evento.tenantId, 'tenantId')
   exigirTexto(evento.terminalId, 'terminalId')
@@ -483,7 +499,7 @@ export function validarEvento(evento: Evento): void {
     throw new TypeError(`ocurridoEn debe ser una fecha ISO-8601: ${String(evento.ocurridoEn)}`)
   }
 
-  if (evento.schemaVersion !== 1) {
+  if (evento.schemaVersion !== versionEsperada) {
     throw new RangeError(`schemaVersion no soportada: ${String(evento.schemaVersion)}`)
   }
 

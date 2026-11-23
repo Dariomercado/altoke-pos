@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { TERMINAL_DEL_SERVIDOR } from '@altoke/domain'
+import { SCHEMA_VERSION_ACTUAL, TERMINAL_DEL_SERVIDOR } from '@altoke/domain'
 import type { Evento } from '@altoke/domain'
-import { parsearEvento } from './eventos'
+import { SCHEMA_VERSION_SOPORTADA, parsearEvento } from './eventos'
 
 const TENANT = 'tenant-1'
 const TERMINAL = 'term-1'
@@ -49,6 +49,15 @@ const EVENTOS_DEL_DOMINIO: readonly Evento[] = [
     terminalId: TERMINAL_DEL_SERVIDOR,
   }),
 ]
+
+describe('SCHEMA_VERSION_SOPORTADA — una sola fuente de verdad', () => {
+  it('sale del dominio: subir la versión es un solo edit y no dos que pueden discrepar', () => {
+    // La versión vive en `packages/domain` (T7, odd/tasks/altoke-m2-sync.md). Si el contrato la
+    // escribiera de nuevo, un bump en un lado y no en el otro aceptaría en el cable lo que la
+    // cadena de migraciones no sabe leer.
+    expect(SCHEMA_VERSION_SOPORTADA).toBe(SCHEMA_VERSION_ACTUAL)
+  })
+})
 
 describe('parsearEvento — lo que el dominio produce', () => {
   it('acepta los doce tipos del libro y los devuelve sin tocar', () => {

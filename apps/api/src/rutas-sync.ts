@@ -32,7 +32,8 @@ import {
   syncTraerConsulta,
 } from '@altoke/contracts'
 import type { SyncEmpujarRespuesta } from '@altoke/contracts'
-import { TERMINAL_DEL_SERVIDOR, validarEventoDeCliente } from '@altoke/domain'
+import { TERMINAL_DEL_SERVIDOR, migrarEvento, validarEventoDeCliente } from '@altoke/domain'
+import type { Evento } from '@altoke/domain'
 import type { Consultable, FuenteDeConexiones } from './db.ts'
 import { autenticacionDe, autenticar, requiereRol } from './auth.ts'
 import { validacion } from './errores.ts'
@@ -168,7 +169,19 @@ async function empujarLote(
   }
 
   for (const [indice, crudo] of lote.eventos.entries()) {
-    const parseado = parsearEvento(crudo)
+    // 0003 §schemaVersion: la cadena compartida corre **antes** de validar, así un cuerpo de una
+    // versión vieja se juzga con las reglas de hoy. Con la cadena vacía de M2 el cuerpo que se
+    // escribe es idéntico al que declaró la terminal —por eso reintentarlo es `duplicado` y no
+    // `conflicto`— y ninguna fila existente se reescribe: `guardarEvento` sólo inserta.
+    let migrado: Evento
+    try {
+      migrado = migrarEvento(crudo)
+    } catch (error) {
+      rechazados.push({ id: idDeRechazo(crudo, indice), motivo: motivoDeError(error) })
+      continue
+    }
+
+    const parseado = parsearEvento(migrado)
     if (!parseado.ok) {
       rechazados.push({ id: idDeRechazo(crudo, indice), motivo: parseado.error.error.mensaje })
       continue

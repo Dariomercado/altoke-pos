@@ -19,12 +19,19 @@
 import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { parsearSyncEmpujarRespuesta, parsearSyncTraerRespuesta } from '@altoke/contracts'
+import {
+  SCHEMA_VERSION_SOPORTADA,
+  parsearSyncEmpujarRespuesta,
+  parsearSyncTraerRespuesta,
+} from '@altoke/contracts'
+import type { CadenaDeMigraciones } from '@altoke/domain'
 import { crearPool } from './db.ts'
 import type { FuenteDeConexiones } from './db.ts'
+import { traerEventos } from './eventos.ts'
 import { aplicarMigraciones, leerMigraciones } from './migraciones.ts'
 import { hashPassword } from './password.ts'
 import { crearServidor } from './servidor.ts'
+import { enTransaccionDeTenant } from './transaccion.ts'
 
 const DIRECTORIO_MIGRACIONES = `${import.meta.dirname}/../migrations`
 const PASSWORD = 'contraseña-de-prueba'
@@ -40,7 +47,7 @@ const sinBase = urlApp === undefined || urlDuenio === undefined
 
 if (sinBase) {
   process.stderr.write(
-    '[apps/api] DATABASE_URL ausente: se OMITEN los tests de sync contra Postgres (15 tests). ' +
+    '[apps/api] DATABASE_URL ausente: se OMITEN los tests de sync contra Postgres (18 tests). ' +
       'Para correrlos: pnpm db:up y después ' +
       'DATABASE_URL=postgres://altoke_app:altoke_app@localhost:5435/altoke ' +
       'MIGRATIONS_DATABASE_URL=postgres://altoke:altoke@localhost:5435/altoke pnpm test.\n',
@@ -246,6 +253,22 @@ describe.skipIf(sinBase)('sync contra Postgres', () => {
     expect(await acuseGuardado(cuenta.tenant.id, terminal)).toBe(3)
   })
 
+  it('una schemaVersion futura se rechaza al empujar: la cadena no migra hacia atrás', async () => {
+    const cuenta = await registrar('futura-push')
+    const terminal = `caja-${sufijo}-14`
+
+    const respuesta = await empujar(cuenta.token, terminal, [
+      evento(cuenta.tenant.id, terminal, 1),
+      evento(cuenta.tenant.id, terminal, 2, { schemaVersion: SCHEMA_VERSION_SOPORTADA + 1 }),
+    ])
+
+    expect(secuenciasDe(respuesta['aceptados']), 'el v1 se escribe').toEqual([1])
+    expect(respuesta['rechazados']).toHaveLength(1)
+    const rechazo = (respuesta['rechazados'] as readonly Cuerpo[])[0]
+    expect(String(rechazo?.['motivo'])).toContain('más nueva')
+    expect(await filasDe(cuenta.tenant.id, terminal)).toHaveLength(1)
+  })
+
   it('la misma (terminal, secuencia) con otro cuerpo es conflicto y la fila guardada no cambia', async () => {
     const cuenta = await registrar('conflicto')
     const terminal = `caja-${sufijo}-2`
@@ -363,6 +386,82 @@ describe.skipIf(sinBase)('sync contra Postgres', () => {
     expect(respuesta['acuse']).toStrictEqual({ terminalId: propia, ultimaSecuencia: 3 })
     expect(respuesta['hayMas']).toBe(false)
     expect(respuesta['siguienteDesde']).toBeNull()
+  })
+
+  it('la traída migra en memoria: el cuerpo sale migrado y la fila guardada no se reescribe', async () => {
+    const cuenta = await registrar('migracion-lectura')
+    const terminal = `caja-${sufijo}-15`
+    const lectora = otraTerminal(terminal)
+    await empujar(cuenta.token, terminal, [evento(cuenta.tenant.id, terminal, 1)])
+
+    // Cadena sintética: M2 no tiene ninguna migración real (0003 §schemaVersion), así que la única
+    // forma de comprobar que la traída migra de verdad es inyectarle un paso. Vive sólo acá.
+    const cadena: CadenaDeMigraciones = {
+      hasta: 2,
+      pasos: [{ desde: 1, aplicar: (cuerpo) => ({ ...cuerpo, causa: 'compra-migrada' }) }],
+    }
+    const traerConCadena = async () =>
+      enTransaccionDeTenant(pool, cuenta.tenant.id, (conexion) =>
+        traerEventos(conexion, {
+          tenantId: cuenta.tenant.id,
+          terminalId: lectora,
+          desde: undefined,
+          cadena,
+        }),
+      )
+
+    const primera = await traerConCadena()
+    const segunda = await traerConCadena()
+
+    expect(primera.eventos).toHaveLength(1)
+    expect(segunda.eventos, 'leer dos veces da lo mismo').toStrictEqual(primera.eventos)
+    const migrado = primera.eventos[0] as unknown as Cuerpo
+    expect(migrado['schemaVersion']).toBe(2)
+    expect(migrado['causa']).toBe('compra-migrada')
+
+    const fila = (
+      await duenio.query(
+        `SELECT schema_version, cuerpo FROM eventos WHERE tenant_id = $1 AND terminal_id = $2`,
+        [cuenta.tenant.id, terminal],
+      )
+    ).rows[0]
+    expect(fila?.['schema_version'], 'lo guardado sigue en v1').toBe(1)
+    expect((fila?.['cuerpo'] as Cuerpo)['causa'], 'y con el cuerpo que escribió la terminal').toBe(
+      'compra',
+    )
+  })
+
+  it('una fila guardada con schemaVersion futura no se traga en silencio: la traída falla', async () => {
+    const cuenta = await registrar('futura-lectura')
+    const terminal = `caja-${sufijo}-16`
+    const futura = SCHEMA_VERSION_SOPORTADA + 1
+    const cuerpo = evento(cuenta.tenant.id, terminal, 1, { schemaVersion: futura })
+
+    // Como dueño: RLS no lo alcanza y es la única forma de dejar una fila que este código no
+    // sabe leer (un servidor más nuevo escribió antes que éste).
+    await duenio.query(
+      `INSERT INTO eventos (id, tenant_id, terminal_id, secuencia, tipo, ocurrido_en,
+                            schema_version, cuerpo, recibido_en)
+       VALUES ($1, $2, $3, 1, 'ajuste_stock', '2026-11-22T10:00:00.000Z', $4, $5::jsonb, clock_timestamp())`,
+      [cuerpo['id'], cuenta.tenant.id, terminal, futura, JSON.stringify(cuerpo)],
+    )
+
+    const respuesta = await app.inject({
+      method: 'GET',
+      url: `/sync/eventos?${new URLSearchParams({ terminalId: otraTerminal(terminal) }).toString()}`,
+      headers: bearer(cuenta.token),
+    })
+
+    // Devolverla sin migrar sería aplicar un cuerpo con las reglas de otra versión; descartarla
+    // perdería un evento. Falla entero, que es lo único honesto.
+    expect(respuesta.statusCode).toBe(500)
+    const fila = (
+      await duenio.query(
+        `SELECT schema_version FROM eventos WHERE tenant_id = $1 AND terminal_id = $2`,
+        [cuenta.tenant.id, terminal],
+      )
+    ).rows[0]
+    expect(fila?.['schema_version'], 'y la fila no se toca').toBe(futura)
   })
 
   it('cada evento del mismo lote tiene su propio recibido_en, en orden creciente', async () => {

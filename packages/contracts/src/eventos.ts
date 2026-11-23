@@ -24,13 +24,20 @@
  */
 
 import { z } from 'zod'
-import { MEDIOS_PAGO } from '@altoke/domain'
+import { MEDIOS_PAGO, SCHEMA_VERSION_ACTUAL } from '@altoke/domain'
 import { centavos, entero, enteroPositivo, texto } from './campos.ts'
 import { parsear } from './parseo.ts'
 import type { Resultado } from './errores.ts'
 
-/** La versión de schema que este código sabe leer: en M2 sólo existe v1 (0003 §schemaVersion). */
-export const SCHEMA_VERSION_SOPORTADA = 1
+/**
+ * La versión de schema que este código sabe leer: en M2 sólo existe v1 (0003 §schemaVersion).
+ *
+ * **No se escribe acá**: sale de `SCHEMA_VERSION_ACTUAL` del dominio, que es donde vive la versión
+ * con la que se escribe el libro, y la cadena de migraciones migra hasta la misma. Un contrato con
+ * su propio número aceptaría en el cable una versión que la cadena no sabe leer, o rechazaría una
+ * que sí: subir la versión es un solo edit (T7 de odd/tasks/altoke-m2-sync.md).
+ */
+export const SCHEMA_VERSION_SOPORTADA = SCHEMA_VERSION_ACTUAL
 
 /**
  * Versión declarada por el evento.
