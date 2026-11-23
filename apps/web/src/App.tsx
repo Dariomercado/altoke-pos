@@ -1,5 +1,6 @@
 /**
- * Pantalla del POS (T7): grilla de productos a la izquierda, venta y cobro a la derecha.
+ * Pantalla del POS (T4): bandeja táctil —riel de categorías, grilla de productos y bandeja de
+ * venta anclada abajo— sobre `PanelVenta`, con el cobro al alcance del pulgar.
  *
  * Esta capa **no calcula plata**: los totales vienen de `calcularTotales`, el stock proyectado y
  * el resumen del turno del libro, y el arqueo de `armarArqueo`. Todo lo que escribe eventos pasa
@@ -19,12 +20,11 @@ import { CATALOGO, STOCK_INICIAL } from './catalogo'
 import type { ProductoDeCatalogo } from './catalogo'
 import { AperturaCaja } from './components/AperturaCaja'
 import { Encabezado } from './components/Encabezado'
-import { GrillaProductos } from './components/GrillaProductos'
 import { PanelCierre } from './components/PanelCierre'
 import { PanelMarca } from './components/PanelMarca'
-import { PanelVenta } from './components/PanelVenta'
 import { ResumenArqueo } from './components/ResumenArqueo'
 import { Ticket } from './components/Ticket'
+import { PantallaVenta } from './components/bandeja/PantallaVenta'
 import { centavosDesdePesos, pesosDesdeCentavos } from './formato'
 import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
 import { crearCaja } from './pos/caja'
@@ -144,6 +144,15 @@ export function App({ store }: AppProps) {
     )
   }, [])
 
+  /** Sacar la línea entera: la venta sigue abierta, sólo deja de incluir ese producto. */
+  const quitarLinea = useCallback((sku: string) => {
+    setLineas((previas) => previas.filter((linea) => linea.sku !== sku))
+  }, [])
+
+  const vaciarVenta = useCallback(() => {
+    setLineas([])
+  }, [])
+
   async function abrirTurno(fondoPesos: string): Promise<void> {
     if (caja === null) return
 
@@ -252,8 +261,10 @@ export function App({ store }: AppProps) {
     contadoCentavos: contarDenominaciones(conteo),
   })
 
+  const abierto = estado.turno.abierto
+
   return (
-    <div className="pos">
+    <div className={abierto ? 'flex h-dvh flex-col overflow-hidden' : 'pos'}>
       <Encabezado
         nombreTenant={NOMBRE_TENANT}
         terminalId={TERMINAL_ID}
@@ -264,71 +275,84 @@ export function App({ store }: AppProps) {
       />
 
       {error !== null && (
-        <p className="pos__error" role="alert">
+        <p
+          className={
+            abierto ? 'pos__error mx-[var(--page-margin)] my-[var(--space-sm)]' : 'pos__error'
+          }
+          role="alert"
+        >
           {error}
         </p>
       )}
 
-      {!estado.turno.abierto && (
-        <AperturaCaja fondoPorDefecto={FONDO_POR_DEFECTO} onAbrir={abrirTurno} />
+      {!abierto && <AperturaCaja fondoPorDefecto={FONDO_POR_DEFECTO} onAbrir={abrirTurno} />}
+
+      {abierto && (
+        <PantallaVenta
+          productos={CATALOGO}
+          stock={estado.stock}
+          onAgregar={agregarProducto}
+          lineas={lineas}
+          totales={totales}
+          efectivoPesos={efectivoPesos}
+          esTarjeta={esTarjeta}
+          onCambiarCantidad={cambiarCantidad}
+          onQuitar={quitarLinea}
+          onVaciar={vaciarVenta}
+          onCambiarEfectivo={setEfectivoPesos}
+          onCambiarTarjeta={setEsTarjeta}
+          onCobrar={cobrar}
+        />
       )}
 
-      {estado.turno.abierto && (
-        <div className="pos__paneles">
-          <GrillaProductos
-            productos={CATALOGO}
-            stock={estado.stock}
-            onAgregar={agregarProducto}
+      {/*
+       * Cierre, marca y ticket siguen con `pos.css` (T4 no los migra): en el turno abierto van
+       * apilados debajo de la bandeja, con el margen de página que antes ponía `.pos`.
+       */}
+      <div
+        className={
+          abierto
+            ? 'flex flex-col gap-[var(--space-md)] px-[var(--page-margin)] pb-[var(--space-lg)]'
+            : 'contents'
+        }
+      >
+        {panelMarca && (
+          <PanelMarca
+            marca={marca}
+            nombreTenant={NOMBRE_TENANT}
+            onCambiar={aceptarMarca}
+            onRestablecer={restablecerMarca}
+            onCerrar={() => setPanelMarca(false)}
           />
-          <PanelVenta
-            lineas={lineas}
-            totales={totales}
-            efectivoPesos={efectivoPesos}
-            esTarjeta={esTarjeta}
-            onCambiarCantidad={cambiarCantidad}
-            onCambiarEfectivo={setEfectivoPesos}
-            onCambiarTarjeta={setEsTarjeta}
-            onCobrar={cobrar}
+        )}
+
+        {panelCierre && estado.turno.abierto && (
+          <PanelCierre
+            denominaciones={DENOMINACIONES}
+            conteo={conteo}
+            arqueo={arqueoEnCurso}
+            onCambiarCantidad={cambiarConteo}
+            onConfirmar={confirmarCierre}
+            onCancelar={() => setPanelCierre(false)}
           />
-        </div>
-      )}
+        )}
 
-      {panelMarca && (
-        <PanelMarca
-          marca={marca}
-          nombreTenant={NOMBRE_TENANT}
-          onCambiar={aceptarMarca}
-          onRestablecer={restablecerMarca}
-          onCerrar={() => setPanelMarca(false)}
-        />
-      )}
+        {ultimoCierre !== null && (
+          <section className="ultimo-cierre" aria-label="Último cierre">
+            <h2 className="ultimo-cierre__titulo">Último cierre</h2>
+            <ResumenArqueo arqueo={ultimoCierre} />
+          </section>
+        )}
 
-      {panelCierre && estado.turno.abierto && (
-        <PanelCierre
-          denominaciones={DENOMINACIONES}
-          conteo={conteo}
-          arqueo={arqueoEnCurso}
-          onCambiarCantidad={cambiarConteo}
-          onConfirmar={confirmarCierre}
-          onCancelar={() => setPanelCierre(false)}
-        />
-      )}
-
-      {ultimoCierre !== null && (
-        <section className="ultimo-cierre" aria-label="Último cierre">
-          <h2 className="ultimo-cierre__titulo">Último cierre</h2>
-          <ResumenArqueo arqueo={ultimoCierre} />
-        </section>
-      )}
-
-      {venta !== null && (
-        <Ticket
-          venta={venta}
-          nombreTenant={NOMBRE_TENANT}
-          terminalId={TERMINAL_ID}
-          logoUrl={marca.logoUrl}
-        />
-      )}
+        {venta !== null && (
+          <Ticket
+            venta={venta}
+            nombreTenant={NOMBRE_TENANT}
+            terminalId={TERMINAL_ID}
+            logoUrl={marca.logoUrl}
+          />
+        )}
+      </div>
     </div>
   )
 }
