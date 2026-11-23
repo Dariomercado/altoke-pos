@@ -7,7 +7,9 @@
  *
  * Reglas que esta capa impone, porque nadie más las puede imponer:
  *   - **No se cobra sin turno abierto.** Un kiosco abre la caja con fondo y cierra al final; sin
- *     turno no hay arqueo posible y el cierre de turno queda huérfano.
+ *     turno no hay arqueo posible y el cierre de turno queda huérfano. El turno se relee **al
+ *     escribir**, no se recuerda: otra pestaña u otra terminal pueden haberlo cerrado, y la
+ *     pantalla no es la que decide si se puede cobrar.
  *   - **No se confirma una venta mal cobrada.** Si los pagos no alcanzan el total, no se escribe
  *     nada: cobrar de menos es un error del cajero, no un estado del negocio.
  *   - **La secuencia es estrictamente creciente por terminal**, que es lo único que hace
@@ -235,8 +237,12 @@ export function crearCaja(opciones: OpcionesCaja): Caja {
         )
       }
 
-      const { turnoId } = await estadoTurno()
-      if (turnoId === null) {
+      // El turno se relee acá, en el mismo camino que escribe: `turnoId` sobrevive al cierre (el
+      // cierre sólo apaga `abierto`), así que mirarlo solo dejaría escribir una venta en un turno
+      // que otra pestaña ya cerró. La pantalla que esconde la bandeja es una comodidad, no la
+      // garantía.
+      const { resumen, turnoId } = await estadoTurno()
+      if (!resumen.abierto || turnoId === null) {
         throw new Error('No hay turno abierto: abrí la caja antes de cobrar.')
       }
 

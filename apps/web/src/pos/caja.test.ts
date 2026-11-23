@@ -208,6 +208,25 @@ describe('caja — anular y cerrar', () => {
 
     await expect(caja.cerrarTurno({})).rejects.toThrow(/turno abierto/i)
   })
+
+  it('rechaza el cobro en un turno ya cerrado y no escribe nada', async () => {
+    const { caja, libro } = await cajaDePrueba()
+    await caja.abrirTurno(5000)
+    await caja.cobrar([alfajor(1)], [{ medio: 'efectivo', montoCentavos: 1210 }])
+    await caja.cerrarTurno({ 5_000: 1, 1_000: 1, 200: 1, 10: 1 })
+
+    // La caja no depende de que la pantalla esconda la bandeja: relee el turno al escribir.
+    const eventosAntes = await libro()
+    const turnoAntes = (await caja.estado()).turno
+
+    await expect(
+      caja.cobrar([alfajor(1)], [{ medio: 'efectivo', montoCentavos: 1210 }]),
+    ).rejects.toThrow('No hay turno abierto: abrí la caja antes de cobrar.')
+
+    expect(await libro()).toHaveLength(eventosAntes.length)
+    expect(await libro()).toEqual(eventosAntes)
+    expect((await caja.estado()).turno).toEqual(turnoAntes)
+  })
 })
 
 describe('caja — inventario inicial', () => {
