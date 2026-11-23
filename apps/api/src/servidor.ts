@@ -1,7 +1,7 @@
 /**
  * El proceso HTTP (docs/specs/0003-api-y-sync.md §Infraestructura).
  *
- * `GET /salud` y las rutas de auth y de administración del tenant. La regla del health check:
+ * `GET /salud`, las rutas de auth, las de administración del tenant y el sync entre terminales. La regla del health check:
  * **no mentir y no reventar**. Si Postgres no contesta, la respuesta sigue siendo 200 y dice
  * `db: "down"`: un health check que devuelve 500 cuando la base está caída confunde al proxy con
  * el diagnóstico.
@@ -12,6 +12,7 @@ import type { FastifyInstance } from 'fastify'
 import type { Consultable, FuenteDeConexiones } from './db.ts'
 import { registrarManejadoresDeError } from './errores.ts'
 import { registrarRutasAuth } from './rutas-auth.ts'
+import { registrarRutasSync } from './rutas-sync.ts'
 import { registrarRutasTenants } from './rutas-tenants.ts'
 
 export type EstadoBase = 'up' | 'down'
@@ -47,6 +48,7 @@ export function crearServidor(opciones: OpcionesServidor): FastifyInstance {
 
   registrarRutasAuth(app, opciones.pool)
   registrarRutasTenants(app, opciones.pool)
+  registrarRutasSync(app, opciones.pool)
 
   return app
 }

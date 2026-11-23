@@ -77,7 +77,7 @@ Todo error, incluido un 500 y una ruta inexistente, responde con la forma de `00
 | `sin_permiso`        | 403  | el usuario no es miembro de ese tenant, o su rol no alcanza   |
 | `tenant_desconocido` | 404  | `X-Tenant` o `:slug` no existe                                |
 | `validacion`         | 400  | input inválido, email/slug/sucursal ya tomados, tenant sin elegir, JSON malformado |
-| `conflicto_de_secuencia` | 409 | lo usa el sync (T5), todavía no hay ruta                     |
+| `conflicto_de_secuencia` | 409 | reservado; el sync **no** lo usa: un conflicto de secuencia entra en el 200 como item de `conflictos` con su `motivo` |
 | `demasiados_intentos`| 429  | reservado; M2 no limita intentos                              |
 | `error_interno`      | 500  | falla del servidor: el detalle queda en el log, nunca en la respuesta |
 | `no_encontrado`      | 404  | ruta inexistente, para no romper la forma única               |
@@ -99,6 +99,8 @@ un health check que miente o que devuelve 500 cuando la base está caída es peo
 | `DELETE` | `/auth/sesion`                         | autenticado   | 204 |
 | `POST`   | `/tenants/:slug/terminales`            | `owner`/`admin` | 201: `{ id, nombre, tenantId, sucursal }` |
 | `POST`   | `/tenants/:slug/usuarios/:id/password` | `owner`/`admin` | 200: `{ ok: true }` |
+| `POST`   | `/sync/eventos`                        | `cajero`/`admin`/`owner` | 200: `{ aceptados, duplicados, conflictos, rechazados, acuse, huecos }` |
+| `GET`    | `/sync/eventos?terminalId=&desde=`     | cualquier rol (incluido `solo_lectura`) | 200: `{ eventos, acuse, hayMas, siguienteDesde }` |
 
 - **Reset de contraseña:** `owner`/`admin` y el rol del objetivo **estrictamente menor** que el del
   actor (`owner` → `admin`/`cajero`/`solo_lectura`; `admin` → `cajero`/`solo_lectura`). Resetear a
@@ -155,6 +157,106 @@ El spec fija la forma y los códigos; estas son las elecciones de T3 donde no di
   política `FOR SELECT` sobre `usuario_id = app.usuario_id`, seteado por el servidor desde la sesión.
   El aislamiento por tenant sigue intacto y escribir una membresía sigue exigiendo `app.tenant_id`.
 
+### Sync entre terminales (`0003` §Sync)
+
+La cola de sync es **"eventos con secuencia mayor al último acuse"**, no un rango de fechas: el orden
+lo da `secuencia` por terminal y el acuse del servidor. La terminal cobra igual sin este endpoint; el
+servidor junta terminales y detecta lo que no cierra.
+
+#### Empujar — `POST /sync/eventos`
+
+```json
+{ "terminalId": "caja-1", "eventos": [ /* Evento[] del libro */ ] }
+```
+
+```json
+{
+  "aceptados": [{ "id": "evt-1", "secuencia": 1 }],
+  "duplicados": [],
+  "conflictos": [{ "id": "evt-2", "secuencia": 2, "motivo": "…" }],
+  "rechazados": [{ "id": "evt-3", "motivo": "…" }],
+  "acuse": { "terminalId": "caja-1", "ultimaSecuencia": 2 },
+  "huecos": [3]
+}
+```
+
+- **Idempotencia por `(tenant, terminal, secuencia)`**, y la arbitra la base: cada evento se inserta
+  con `ON CONFLICT (tenant_id, terminal_id, secuencia) DO NOTHING` y después se relee lo guardado.
+  Un "si no existe, insertalo" desde la aplicación deja una ventana en la que cabe otra terminal.
+- **Mismo cuerpo → `duplicados`** (un reintento después de una respuesta perdida no duplica nada) y
+  **otro cuerpo → `conflictos`**, con `motivo`. La comparación es canónica (JSON con claves
+  ordenadas): `jsonb` no conserva el orden de las claves, así que comparar `JSON.stringify` contra lo
+  releído marcaría conflicto hasta en el reintento idéntico.
+- **`eventos.id` es único en todo el servidor.** Un id reusado en otra secuencia es un conflicto, no
+  una escritura: el servidor **nunca reescribe un evento** ni completa una secuencia faltante.
+- **Un evento inválido no aborta el lote.** Se valida con `validarEvento` del dominio y con el schema
+  de `@altoke/contracts`, y lo que falla vuelve en `rechazados` con su `motivo` mientras sus hermanos
+  se escriben. Un rechazo sin `id` utilizable se identifica por su posición (`eventos.3`).
+- **El tenant y la terminal salen de la sesión.** Un evento que declara otro `tenantId` o otro
+  `terminalId` que el del pedido se rechaza y no se escribe: el cuerpo es del cliente, la pertenencia
+  no. Un `terminalId` inventado sólo puede escribir dentro del tenant de quien lo manda.
+
+**`huecos` (adición a `0003` §Empujar).** El spec pide el acuse y no dice cómo reportar los huecos.
+`acuse.ultimaSecuencia` es el máximo **contiguo** desde 1 —no el máximo—, así que la lista de
+secuencias faltantes que la terminal todavía debe viaja en `huecos` (un tope de 200: un salto de 1 a
+10⁹ no puede volverse una respuesta de mil millones de números, y `acuse.ultimaSecuencia` ya dice
+dónde está el primer hueco, que es lo que hace falta para reenviar). Acusar más allá de un hueco
+sería decirle a la terminal que deje de reenviar eventos que nunca llegaron, y eso pierde ventas.
+
+El acuse se persiste en `acuses` con `GREATEST(...)`: nunca retrocede. Un `GET` no lo escribe.
+
+#### Traer — `GET /sync/eventos?terminalId=…&desde=…`
+
+```json
+{
+  "eventos": [ /* Evento[] */ ],
+  "acuse": { "terminalId": "caja-1", "ultimaSecuencia": 3 },
+  "hayMas": true,
+  "siguienteDesde": "2026-11-23T03:00:29.123456Z"
+}
+```
+
+- **Excluye la terminal que pide**: esos eventos ya están en su libro. Trae los de las demás
+  terminales del tenant.
+- **Orden `(recibido_en, id)`** con página de **200** y `hayMas` = "existe la página siguiente" (se
+  pide una fila de más, no se cuenta).
+- **`desde` es opcional y, si viene, ISO-8601**; ausente significa "desde el principio".
+- **`siguienteDesde` (adición a `0003` §Traer).** El contrato del spec devuelve `hayMas` y ningún
+  cursor: un cliente que recibe `hayMas: true` no tiene con qué armar la página siguiente, porque
+  `Evento` no lleva `recibidoEn`. `siguienteDesde` es el `desde` exacto de la próxima página y
+  `null` cuando no hay más — viaja explícito, nunca ausente, porque un campo ausente se leería como
+  "no pidas más". No se deriva del último evento: el cliente no tiene que reimplementar el cursor, y
+  una página vacía o de borde lo dejaría sin nada sobre lo que apoyarse. Es ISO con microsegundos:
+  truncarlo a milisegundos repite el evento de la frontera (y un `ajuste_stock` aplicado dos veces es
+  stock mal contado).
+- **`solo_lectura` puede traer.** Leer es exactamente lo que hace ese rol; empujar no.
+
+#### Por qué `recibido_en` es único por tenant
+
+`recibido_en` es `DEFAULT now()`, el reloj de la **transacción**: todos los eventos de un lote de una
+terminal nacerían con el mismo valor, y el cursor `recibido_en > desde` perdería a los empatados justo
+al cortar una página. Por eso T5 escribe `recibido_en` evento por evento, estrictamente creciente
+(`GREATEST(clock_timestamp(), max(recibido_en) + 1 µs)`) y la migración
+[`0005_eventos_recibido_en_unico.sql`](migrations/0005_eventos_recibido_en_unico.sql) lo hace cumplir
+con un índice único `(tenant_id, recibido_en)`. Si dos transacciones concurrentes caen en el mismo
+microsegundo, el índice rechaza a una y el `INSERT` reintenta con un reloj posterior (tres intentos y
+se rinde con un 500 que el cliente puede reintentar: empujar es idempotente).
+
+Cualquier escritor nuevo de `eventos` tiene que asignar `recibido_en` creciente, no dejarlo al
+`DEFAULT` de una transacción con más de una fila.
+
+#### `terminalId` lo lleva el cliente
+
+`0003` §Esquema **no tiene tabla `terminales`**: no hay registro de terminales contra el que validar
+un `terminalId`. El id lo lleva el cliente (el que devuelve `POST /tenants/:slug/terminales`), tiene
+que ser un texto no vacío de hasta 64 caracteres, y como toda fila se escribe con el `tenant_id` de
+la sesión, un id inventado no puede tocar datos de otro tenant: a lo sumo se crea una cola propia
+dentro del tenant de quien lo manda. Dos terminales que compartan `terminalId` comparten cola y se
+pisarían secuencias: no lo hagas.
+
+Las respuestas de las dos rutas se validan contra `@altoke/contracts` antes de salir; si el contrato
+no las acepta, es un bug del servidor y responde 500 en vez de un cuerpo raro.
+
 ### Aislamiento por tenant en las consultas
 
 Toda consulta autenticada corre en una conexión dedicada con `BEGIN` + `SELECT set_config('app.tenant_id', $1, true)`
@@ -203,6 +305,14 @@ revocado, `solo_lectura` sin permiso, un token del tenant A pidiendo el tenant B
 roles y la revocación de sesiones del reset, y dos carreras reales (dos altas simultáneas con el
 mismo tenant y dos terminales simultáneas con la misma sucursal nueva): nunca un 500 y nunca una
 fila duplicada.
+
+Los de sync (`src/sync-postgres.test.ts`) cubren el mismo lote dos veces (`aceptados` y después
+`duplicados`, sin filas nuevas), el mismo `(terminal, secuencia)` con otro cuerpo (`conflicto` y la
+fila intacta), un `id` reusado, un evento inválido entre válidos, el acuse contiguo con sus huecos,
+la traída que excluye la terminal propia, el aislamiento entre tenants, `solo_lectura` empujando
+`sin_permiso` y trayendo sin problema, y el paginado con eventos escritos **en un mismo lote**: 201
+eventos se traen 200 + 1 sin perder el de la frontera, que es el caso que un `now()` de transacción
+perdía en silencio.
 
 Los tests que no necesitan base usan un doble (`src/dobles.ts`) que devuelve filas guionadas y
 registra cada consulta con su conexión: así se verifica que `BEGIN`, `set_config`, `COMMIT` y
