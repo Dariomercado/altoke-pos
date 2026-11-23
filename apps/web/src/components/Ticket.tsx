@@ -12,7 +12,8 @@ export interface TicketProps {
   readonly logoUrl?: string | undefined
 }
 
-const ETIQUETA_MEDIO: Readonly<Record<MedioPago, string>> = {
+/** Cómo se nombra cada medio en el papel y en la confirmación de la venta. */
+export const ETIQUETA_MEDIO: Readonly<Record<MedioPago, string>> = {
   efectivo: 'Efectivo',
   tarjeta_manual: 'Tarjeta',
   transferencia: 'Transferencia',
@@ -28,6 +29,10 @@ const ETIQUETA_MEDIO: Readonly<Record<MedioPago, string>> = {
  *
  * El CSS de impresión vive en `styles/ticket.css`: al imprimir, esto es lo único que sale en
  * pantalla, a 72 mm de ancho útil dentro de un papel de 80 mm.
+ *
+ * El ticket no trae su propio botón de imprimir: quien lo muestra decide dónde va la acción
+ * (`PantallaTicket`, T6). Así el papel que se ve es exactamente el papel que se imprime, sin un
+ * control dibujado adentro del rollo.
  */
 export function Ticket({ venta, nombreTenant, terminalId, logoUrl }: TicketProps) {
   // Igual que el encabezado: un logo en blanco no se dibuja, ni como `<img src="">`.
@@ -77,12 +82,6 @@ export function Ticket({ venta, nombreTenant, terminalId, logoUrl }: TicketProps
       )}
 
       <p className="ticket__leyenda">TICKET INTERNO — no es comprobante fiscal válido</p>
-
-      <div className="ticket__acciones">
-        <button type="button" className="boton boton--secundario" onClick={() => window.print()}>
-          Imprimir
-        </button>
-      </div>
     </section>
   )
 }

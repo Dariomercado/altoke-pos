@@ -24,8 +24,8 @@ import { Encabezado } from './components/Encabezado'
 import { PanelCierre } from './components/PanelCierre'
 import { PanelMarca } from './components/PanelMarca'
 import { ResumenArqueo } from './components/ResumenArqueo'
-import { Ticket } from './components/Ticket'
 import { HojaCobro } from './components/bandeja/HojaCobro'
+import { PantallaTicket } from './components/bandeja/PantallaTicket'
 import { PantallaVenta } from './components/bandeja/PantallaVenta'
 import { centavosDesdePesos, pesosDesdeCentavos } from './formato'
 import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
@@ -345,8 +345,9 @@ export function App({ store }: AppProps) {
       )}
 
       {/*
-       * Marca y ticket siguen con `pos.css`: en el turno abierto van apilados debajo de la
-       * bandeja, con el margen de página que antes ponía `.pos`.
+       * Marca y último cierre siguen con `pos.css`: en el turno abierto van apilados debajo de la
+       * bandeja, con el margen de página que antes ponía `.pos`. El ticket ya no vive acá: cobrar
+       * abre su propia pantalla (T6).
        */}
       <div
         className={
@@ -371,16 +372,21 @@ export function App({ store }: AppProps) {
             <ResumenArqueo arqueo={ultimoCierre} />
           </section>
         )}
-
-        {venta !== null && (
-          <Ticket
-            venta={venta}
-            nombreTenant={NOMBRE_TENANT}
-            terminalId={TERMINAL_ID}
-            logoUrl={marca.logoUrl}
-          />
-        )}
       </div>
+
+      {/*
+       * El ticket (T6) se queda en pantalla hasta que el cajero lo entrega: es la confirmación de
+       * que la venta está en el libro y el vuelto que tiene que dar. Cerrarla es "Nueva venta".
+       */}
+      {venta !== null && (
+        <PantallaTicket
+          venta={venta}
+          nombreTenant={NOMBRE_TENANT}
+          terminalId={TERMINAL_ID}
+          logoUrl={marca.logoUrl}
+          onNuevaVenta={() => setVenta(null)}
+        />
+      )}
 
       {/*
        * El cierre (T7) es una pantalla, no un panel al costado de la venta: cuenta billete por
