@@ -182,6 +182,20 @@ describe('cierre de caja — resumen del turno', () => {
   })
 })
 
+describe('cierre de caja — tinta de las acciones', () => {
+  it('«Vaciar conteo» pinta con la tinta del tema y no con el primario de marca', () => {
+    renderCierre()
+
+    const vaciar = screen.getByRole('button', { name: 'Vaciar conteo' })
+
+    // `text-primary` escribe la marca del tenant como tinta sobre una tarjeta clara, y el guard de
+    // contraste no valida --brand-primary como color de texto: una marca pastel quedaría ilegible.
+    // La tinta del tema sí está cubierta por el guard.
+    expect(vaciar.className).toContain('text-foreground')
+    expect(vaciar.className).not.toContain('text-primary')
+  })
+})
+
 describe('cierre de caja — errores de la caja', () => {
   it('el error de la caja se lee adentro de la capa del cierre', () => {
     renderCierre({ error: 'No hay turno abierto para cerrar.' })

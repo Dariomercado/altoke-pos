@@ -128,6 +128,11 @@ describe('POS — cobrar e imprimir', () => {
     await user.click(screen.getByRole('button', { name: 'Cobrar' }))
 
     expect((await screen.findByRole('alert')).textContent).toContain('Faltan cobrar')
+
+    // Con el efectivo corto no hay confirmación a un toque: el botón que cierra la venta queda
+    // apagado, así que el carrito no puede salir por accidente mientras se lee el error.
+    const cobrar = screen.getByRole('button', { name: 'Cobrar y sacar ticket' })
+    expect((cobrar as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByRole('region', { name: 'Ticket de la venta' })).toBeNull()
     expect(screen.getByTestId('total-turno').textContent).toBe(formatearCentavos(0))
     expect(tejaDeAlfajor().textContent).toContain('Stock: 24')

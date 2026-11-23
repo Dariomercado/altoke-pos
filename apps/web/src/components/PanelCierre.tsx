@@ -145,7 +145,7 @@ export function PanelCierre({
               type="button"
               variant="ghost"
               onClick={onVaciar}
-              className="ml-auto min-h-[var(--size-touch-min)] gap-[var(--space-sm)] rounded-md px-[var(--space-md)] text-[0.8125rem] font-semibold text-primary transition-colors duration-150 ease-out motion-reduce:transition-none"
+              className="ml-auto min-h-[var(--size-touch-min)] gap-[var(--space-sm)] rounded-md px-[var(--space-md)] text-[0.8125rem] font-semibold text-foreground transition-colors duration-150 ease-out motion-reduce:transition-none"
             >
               <Eraser aria-hidden="true" className="size-4" />
               Vaciar conteo
