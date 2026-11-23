@@ -41,6 +41,22 @@ pnpm --filter @altoke/web dev     # the POS on http://localhost:5173
 Open the till, and start selling. Data lives in your browser's IndexedDB: to start from scratch,
 clear the site storage for localhost.
 
+### The API
+
+M2 adds `apps/api` (Fastify + Postgres) for sync and auth. It needs a database:
+
+```bash
+pnpm db:up        # Postgres 16 on port 5435, database/user altoke
+pnpm db:migrate   # applies apps/api/migrations in order
+pnpm dev:api      # the API on http://localhost:3001, GET /salud reports the database
+pnpm db:down
+```
+
+Migrations run as the database owner; the API connects as `altoke_app`, a role without ownership or
+DDL, so row-level security actually isolates tenants instead of being decorative. `MIGRATIONS_DATABASE_URL`
+defaults to `DATABASE_URL`; on a server they differ. Configuration is plain environment variables —
+no dotenv: `node --env-file=.env src/index.ts`.
+
 ### Checks
 
 ```bash
@@ -54,11 +70,12 @@ pnpm --filter @altoke/web build   # production bundle
 
 ```
 apps/web                 the POS: screens, cobro sheet, cierre, 80 mm ticket
+apps/api                 Fastify + Postgres: sync between terminals, auth, fiscal outbox (M2)
 packages/domain          pure logic — money, event ledger, projections, arqueo. No IO.
 packages/store           persistence ports and their adapters (in-memory, IndexedDB)
 packages/ui              design tokens and shared components
-packages/contracts       zod schemas shared with the future API
-docs/specs               architecture (0001) and fiscal/cobros (0002)
+packages/contracts       zod schemas shared between web and api
+docs/specs               architecture (0001), fiscal/cobros (0002), API and sync (0003)
 design/                  the design system board and the POS artboards
 odd/tasks/               the task records: specs, tasks and the log of each feature
 ```

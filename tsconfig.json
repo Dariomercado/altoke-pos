@@ -2,6 +2,9 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
+    // apps/api corre sus .ts directamente con Node (type stripping): los imports relativos
+    // llevan la extensión .ts y TypeScript tiene que aceptarla.
+    "allowImportingTsExtensions": true,
     "paths": {
       "@/*": ["./apps/web/src/*"],
       "@altoke/domain": ["./packages/domain/src/index.ts"],

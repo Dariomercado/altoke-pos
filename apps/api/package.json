@@ -1,0 +1,22 @@
+{
+  "name": "@altoke/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "API de AlToke: Fastify, pool de pg y migraciones en SQL plano.",
+  "main": "./src/index.ts",
+  "scripts": {
+    "dev": "node --watch src/index.ts",
+    "start": "node src/index.ts",
+    "migrate": "node src/migrar.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.12.8",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1"
+  }
+}

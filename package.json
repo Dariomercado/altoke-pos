@@ -11,7 +11,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @altoke/api migrate",
+    "dev:api": "pnpm --filter @altoke/api dev"
   },
   "devDependencies": {
     "@testing-library/react": "^16.3.3",

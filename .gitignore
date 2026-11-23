@@ -4,6 +4,11 @@ build/
 coverage/
 *.log
 *.tsbuildinfo
+
+# Credenciales locales (apps/api se arranca con `node --env-file=.env`). Nunca al repo.
+.env
+.env.*
+!.env.example
 .DS_Store
 .idea/
 .vscode/
