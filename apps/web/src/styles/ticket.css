@@ -95,10 +95,19 @@
   font-size: 0.6875rem;
 }
 
-.ticket__acciones {
-  display: flex;
-  justify-content: center;
-  margin-top: var(--space-md);
+/*
+ * Festoneado del rollo en pantalla (T6). Es un hermano transparente del papel y no un `mask`
+ * sobre él: el ticket tiene fondo propio, y un degradado encima no se vería.
+ */
+.ticket-dientes {
+  width: 72mm;
+  height: 6px;
+  background: radial-gradient(
+      circle at 5px 0,
+      var(--color-surface-container-lowest) 4.5px,
+      transparent 5px
+    )
+    0 0 / 10px 6px repeat-x;
 }
 
 @media print {
@@ -108,6 +117,17 @@
 
   body * {
     visibility: hidden;
+  }
+
+  /*
+   * La pantalla del ticket (T6) es una capa `fixed` en pantalla. En impresión tiene que dejar de
+   * serlo: si sigue posicionada, el papel absoluto se mide contra ella y sale corrido 4 rem y
+   * recortado.
+   */
+  .pantalla-ticket {
+    position: static;
+    display: block;
+    overflow: visible;
   }
 
   .ticket,
@@ -127,8 +147,8 @@
     box-shadow: none;
   }
 
-  /* El botón de imprimir no se imprime. */
-  .ticket__acciones {
+  /* El festoneado es decoración de pantalla. */
+  .ticket-dientes {
     display: none;
   }
 }

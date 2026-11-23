@@ -77,6 +77,7 @@ describe('POS — cobrar e imprimir', () => {
     expect((efectivo as HTMLInputElement).value).toBe('24,20')
 
     await user.click(screen.getByRole('button', { name: 'Cobrar' }))
+    await user.click(screen.getByRole('button', { name: 'Cobrar y sacar ticket' }))
 
     const ticket = await screen.findByRole('region', { name: 'Ticket de la venta' })
     expect(ticket.textContent).toContain('24,20')
@@ -89,8 +90,28 @@ describe('POS — cobrar e imprimir', () => {
     })
     expect(screen.getByTestId('total-turno').textContent).toBe(totalEsperado)
 
-    await user.click(screen.getByRole('button', { name: 'Imprimir' }))
+    await user.click(screen.getByRole('button', { name: 'Imprimir ticket' }))
     expect(imprimir).toHaveBeenCalledTimes(1)
+  })
+
+  it('Nueva venta vuelve a la bandeja y no deja el ticket en pantalla', async () => {
+    const user = userEvent.setup()
+    render(<App store={crearStoreEnMemoria()} />)
+    await abrirCaja(user)
+
+    await user.click(tejaDeAlfajor())
+    await user.click(screen.getByRole('button', { name: 'Cobrar' }))
+    await user.click(screen.getByRole('button', { name: 'Cobrar y sacar ticket' }))
+
+    const pantalla = await screen.findByRole('region', { name: 'Venta cobrada' })
+    // El vuelto exacto se lee en la confirmación, no en el ticket chico.
+    expect(pantalla.textContent).toContain(`Vuelto${formatearCentavos(0)}`)
+
+    await user.click(screen.getByRole('button', { name: 'Nueva venta' }))
+
+    expect(screen.queryByRole('region', { name: 'Venta cobrada' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Ticket de la venta' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Cobrar' })).toBeDefined()
   })
 
   it('un pago insuficiente muestra el error y no confirma nada', async () => {
@@ -107,6 +128,11 @@ describe('POS — cobrar e imprimir', () => {
     await user.click(screen.getByRole('button', { name: 'Cobrar' }))
 
     expect((await screen.findByRole('alert')).textContent).toContain('Faltan cobrar')
+
+    // Con el efectivo corto no hay confirmación a un toque: el botón que cierra la venta queda
+    // apagado, así que el carrito no puede salir por accidente mientras se lee el error.
+    const cobrar = screen.getByRole('button', { name: 'Cobrar y sacar ticket' })
+    expect((cobrar as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByRole('region', { name: 'Ticket de la venta' })).toBeNull()
     expect(screen.getByTestId('total-turno').textContent).toBe(formatearCentavos(0))
     expect(tejaDeAlfajor().textContent).toContain('Stock: 24')
@@ -120,6 +146,7 @@ describe('POS — cobrar e imprimir', () => {
     await user.click(tejaDeAlfajor())
     await user.click(screen.getByLabelText('Tarjeta (manual)'))
     await user.click(screen.getByRole('button', { name: 'Cobrar' }))
+    await user.click(screen.getByRole('button', { name: 'Cobrar y sacar ticket' }))
 
     const ticket = await screen.findByRole('region', { name: 'Ticket de la venta' })
     expect(ticket.textContent).toContain('Tarjeta')

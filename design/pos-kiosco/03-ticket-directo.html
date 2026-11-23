@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280, initial-scale=1">
+<title>AlToke — 03 Ticket directo</title>
+<style>
+  /* Tokens: subconjunto exacto de packages/ui/src/tokens.css (oscuro). */
+  :root {
+    color-scheme: dark;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    --space-xs: .25rem; --space-sm: .5rem; --space-md: 1rem;
+    --space-lg: 1.5rem; --space-xl: 2.5rem;
+    --page-margin-desktop: 2rem;
+
+    --radius-xs: .125rem; --radius-sm: .25rem; --radius-md: .5rem;
+    --radius-lg: .75rem; --radius-full: 9999px;
+
+    --size-touch-min: 2.75rem; --size-control: 3rem; --size-header: 4rem;
+    --shadow-overlay: 0 20px 25px -5px rgb(0 0 0 / 50%), 0 8px 10px -6px rgb(79 70 229 / 12%);
+    --focus-ring-width: 2px;
+
+    --brand-primary: #c3c0ff; --brand-accent: #6bd8cb;
+    --brand-surface: #0b1326; --brand-text: #dae2fd;
+
+    --color-primary: var(--brand-primary); --color-on-primary: #1d00a5;
+    --color-primary-container: #4f46e5; --color-on-primary-container: #dad7ff;
+    --color-secondary: var(--brand-accent); --color-on-secondary: #003732;
+    --color-secondary-container: #29a195; --color-on-secondary-container: #00302b;
+    --color-tertiary: #4edea3; --color-on-tertiary: #003824;
+    --color-tertiary-container: #006e4b; --color-on-tertiary-container: #67f4b7;
+    --color-error: #ffb4ab; --color-on-error: #690005;
+    --color-error-container: #93000a; --color-on-error-container: #ffdad6;
+    --color-surface: var(--brand-surface);
+    --color-surface-dim: #0b1326; --color-surface-bright: #31394d;
+    --color-surface-container-lowest: #060e20;
+    --color-surface-container-low: #131b2e;
+    --color-surface-container: #171f33;
+    --color-surface-container-high: #222a3d;
+    --color-surface-container-highest: #2d3449;
+    --color-on-surface: var(--brand-text);
+    --color-on-surface-variant: #c7c4d8;
+    --color-outline: #918fa1; --color-outline-variant: #464555;
+    --color-placeholder: var(--color-on-surface-variant);
+    --color-inverse-surface: #dae2fd;
+    --color-inverse-on-surface: #283044;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: var(--font-ui);
+    font-size: .9375rem;
+    line-height: 1.5rem;
+    height: 800px; overflow: hidden;
+    display: grid; grid-template-rows: var(--size-header) 1fr;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  button { font: inherit; color: inherit; }
+  :where(:focus-visible) { outline: var(--focus-ring-width) solid var(--color-primary); outline-offset: 2px; }
+
+  /* ── Barra superior ───────────────────────────────────────────────── */
+  header {
+    display: flex; align-items: center; gap: var(--space-md);
+    padding: 0 var(--page-margin-desktop);
+    border-bottom: 1px solid var(--color-outline-variant);
+    background: var(--color-surface-container-lowest);
+  }
+  .brand { display: flex; align-items: baseline; gap: var(--space-sm); }
+  .brand b {
+    font-family: var(--font-sans); font-size: 1.25rem; line-height: 1.75rem;
+    letter-spacing: -.01em; font-weight: 700;
+  }
+  .brand span { font-size: .75rem; letter-spacing: .02em; color: var(--color-on-surface-variant); }
+  .divider { width: 1px; height: 1.5rem; background: var(--color-outline-variant); }
+  .turno { font-size: .75rem; letter-spacing: .02em; color: var(--color-on-surface-variant); }
+  .turno b { color: var(--color-on-surface); font-variant-numeric: tabular-nums; }
+  .spacer { flex: 1; }
+  .state {
+    display: inline-flex; align-items: center; gap: var(--space-sm);
+    font-size: .6875rem; line-height: .875rem; letter-spacing: .04em; font-weight: 700;
+    text-transform: uppercase; color: var(--color-tertiary);
+  }
+  .state i { width: .375rem; height: .375rem; border-radius: var(--radius-full); background: var(--color-tertiary); }
+  .ghost {
+    min-height: var(--size-touch-min); padding: 0 var(--space-md);
+    border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md);
+    background: transparent; font-size: .75rem; font-weight: 600; letter-spacing: .02em; cursor: pointer;
+  }
+  .ghost:hover { background: var(--color-surface-container); }
+
+  /* ── Layout ───────────────────────────────────────────────────────── */
+  main { display: grid; grid-template-columns: 30rem 1fr; min-height: 0; }
+
+  /* ── Captura ──────────────────────────────────────────────────────── */
+  .capture { display: grid; grid-template-rows: auto auto 1fr auto; gap: var(--space-md); padding: var(--space-lg) var(--page-margin-desktop); border-right: 1px solid var(--color-outline-variant); min-height: 0; }
+
+  .scan-field { display: grid; gap: var(--space-xs); }
+  .scan-field label { font-size: .6875rem; line-height: .875rem; letter-spacing: .04em; font-weight: 700; text-transform: uppercase; color: var(--color-on-surface-variant); }
+  .scan-field .box { position: relative; }
+  .scan-field input {
+    width: 100%; min-height: 4rem; padding: 0 9rem 0 var(--space-md);
+    border: 1px solid var(--color-outline); border-radius: var(--radius-md);
+    background: var(--color-surface-container-low); color: var(--color-on-surface);
+    font: inherit; font-size: 1.25rem; font-weight: 600; letter-spacing: .02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .scan-field input::placeholder { color: var(--color-placeholder); font-weight: 400; font-size: 1rem; letter-spacing: 0; }
+  .scan-field .badge {
+    position: absolute; right: var(--space-sm); top: 50%; transform: translateY(-50%);
+    display: inline-flex; align-items: center; gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-sm);
+    background: var(--color-surface-container-high); color: var(--color-on-surface-variant);
+    font-size: .6875rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  }
+
+  .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); align-content: stretch; }
+  .key {
+    min-height: 3.5rem;
+    border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md);
+    background: var(--color-surface-container-low);
+    font-family: var(--font-sans); font-size: 1.5rem; line-height: 2rem; font-weight: 600;
+    font-variant-numeric: tabular-nums; letter-spacing: -.015em;
+    cursor: pointer;
+    transition: background-color 110ms ease, transform 110ms cubic-bezier(.215,.61,.355,1);
+  }
+  .key:hover { background: var(--color-surface-container); }
+  .key:active { transform: scale(.97); background: var(--color-primary-container); color: var(--color-on-primary-container); }
+  .key.wide { grid-column: span 2; font-size: .875rem; letter-spacing: .04em; font-weight: 700; }
+  .key.fn { font-size: .8125rem; letter-spacing: .04em; font-weight: 700; color: var(--color-on-surface-variant); }
+
+  .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-sm); }
+  .quick button {
+    min-height: var(--size-touch-min);
+    border: 1px solid var(--color-outline-variant); border-radius: var(--radius-md);
+    background: transparent; font-size: .8125rem; font-weight: 600;
+    font-variant-numeric: tabular-nums; cursor: pointer;
+  }
+  .quick button:hover { background: var(--color-surface-container); }
+
+  .libre {
+    display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
+    padding: var(--space-md); border-radius: var(--radius-md);
+    background: var(--color-surface-container-low);
+    border: 1px dashed var(--color-outline);
+  }
+  .libre .txt { font-size: .8125rem; line-height: 1.25rem; color: var(--color-on-surface-variant); }
+  .libre .txt b { display: block; color: var(--color-on-surface); font-size: .9375rem; }
+  .libre button {
+    min-height: var(--size-touch-min); padding: 0 var(--space-md);
+    border: 1px solid var(--color-outline); border-radius: var(--radius-md);
+    background: transparent; font-size: .8125rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+
+  /* ── El ticket es la interfaz ─────────────────────────────────────── */
+  .paper-stage {
+    display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: var(--space-lg);
+    justify-items: center;
+    padding: var(--space-lg) var(--page-margin-desktop);
+    background:
+      radial-gradient(70% 60% at 50% 0%, rgb(195 192 255 / 7%), transparent 70%),
+      var(--color-surface-container-lowest);
+    min-height: 0;
+  }
+
+  .paper {
+    position: relative; width: 22rem;
+    display: grid; grid-template-rows: minmax(0, 1fr) auto;
+    max-height: 100%; min-height: 0;
+  }
+  .sheet {
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
+    background: var(--color-inverse-surface); color: var(--color-inverse-on-surface);
+    box-shadow: var(--shadow-overlay);
+    min-height: 0;
+  }
+  /* borde inferior festoneado: dientes de papel sobre el fondo oscuro */
+  .teeth {
+    height: .5rem;
+    background: radial-gradient(circle at .5rem 0, var(--color-inverse-surface) .48rem, transparent .5rem) 0 0 / 1rem .5rem repeat-x;
+  }
+
+  .paper-head { padding: var(--space-md) var(--space-md) var(--space-sm); text-align: center; border-bottom: 1px dashed rgb(40 48 68 / 35%); }
+  .paper-head .logo {
+    width: 2.5rem; height: 2.5rem; margin: 0 auto var(--space-sm);
+    border-radius: var(--radius-sm); background: var(--color-inverse-on-surface);
+    color: var(--color-inverse-surface); display: grid; place-items: center;
+    font-family: var(--font-sans); font-weight: 700; font-size: 1.125rem;
+  }
+  .paper-head b { display: block; font-family: var(--font-sans); font-size: 1.125rem; line-height: 1.5rem; letter-spacing: -.01em; }
+  .paper-head span { display: block; font-size: .75rem; line-height: 1rem; letter-spacing: .02em; opacity: .75; font-variant-numeric: tabular-nums; }
+  .paper-head .doc { margin-top: var(--space-sm); font-size: .6875rem; letter-spacing: .06em; font-weight: 700; text-transform: uppercase; opacity: .6; }
+
+  .paper-lines { overflow: auto; min-height: 0; padding: var(--space-sm) var(--space-lg); }
+  .pl {
+    display: grid; grid-template-columns: 1fr auto; gap: 0 var(--space-sm);
+    padding: .375rem 0;
+    border-bottom: 1px dotted rgb(40 48 68 / 28%);
+    animation: print 190ms cubic-bezier(.19,1,.22,1) both;
+  }
+  .pl .nm { font-size: .875rem; line-height: 1.25rem; font-weight: 600; }
+  .pl .sub { grid-column: 1; font-size: .75rem; line-height: 1rem; opacity: .72; font-variant-numeric: tabular-nums; }
+  .pl .amt { grid-row: span 2; align-self: center; font-size: 1rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  @keyframes print {
+    from { opacity: 0; transform: translateY(-.375rem); clip-path: inset(0 0 100% 0); }
+    to { opacity: 1; transform: none; clip-path: inset(0 0 0 0); }
+  }
+  .paper-empty { padding: var(--space-xl) var(--space-lg); text-align: center; font-size: .875rem; opacity: .65; }
+
+  .paper-foot { padding: var(--space-sm) var(--space-lg) var(--space-md); border-top: 1px dashed rgb(40 48 68 / 35%); }
+  .sum-row { display: flex; justify-content: space-between; font-size: .8125rem; line-height: 1.5rem; font-variant-numeric: tabular-nums; opacity: .8; }
+  .sum-row.total {
+    opacity: 1; margin-top: var(--space-sm); padding-top: var(--space-sm);
+    border-top: 2px solid var(--color-inverse-on-surface);
+    font-family: var(--font-sans); font-weight: 700; font-size: 1rem;
+  }
+  .sum-row.total .v { font-size: 1.75rem; line-height: 2rem; letter-spacing: -.02em; }
+  .pago { display: flex; justify-content: space-between; margin-top: var(--space-md); font-size: .75rem; font-variant-numeric: tabular-nums; opacity: .8; }
+  .pago b { font-weight: 700; opacity: 1; }
+  .legal { margin-top: var(--space-md); font-size: .625rem; line-height: .875rem; letter-spacing: .02em; text-align: center; opacity: .6; }
+
+  .actions { display: flex; gap: var(--space-md); align-items: center; width: 22rem; }
+  .cobrar {
+    flex: 1; display: flex; align-items: center; justify-content: space-between; gap: var(--space-md);
+    min-width: 0; min-height: 4.25rem; padding: 0 var(--space-md);
+    border: 0; border-radius: var(--radius-md);
+    background: var(--color-tertiary); color: var(--color-on-tertiary);
+    font-family: var(--font-sans); font-size: 1rem; font-weight: 700; letter-spacing: .02em;
+    cursor: pointer;
+    transition: transform 120ms cubic-bezier(.215,.61,.355,1), filter 150ms ease;
+  }
+  .cobrar:hover { filter: brightness(1.06); }
+  .cobrar:active { transform: scale(.985); }
+  .cobrar .v { font-size: 1.125rem; line-height: 1.5rem; letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .cobrar:disabled { background: var(--color-surface-container-highest); color: var(--color-on-surface-variant); cursor: not-allowed; filter: none; transform: none; }
+  .anular {
+    min-height: 4.25rem; padding: 0 var(--space-sm); min-width: 5.5rem;
+    border: 1px solid var(--color-outline); border-radius: var(--radius-md);
+    background: transparent; color: var(--color-error);
+    font-size: .75rem; font-weight: 700; letter-spacing: .04em; cursor: pointer;
+  }
+  .anular:hover { background: rgb(147 0 10 / 18%); }
+  .anular:disabled { color: var(--color-on-surface-variant); border-color: var(--color-outline-variant); background: transparent; cursor: not-allowed; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .key, .cobrar { transition: none; }
+    .pl { animation: none; }
+    .key:active, .cobrar:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <b>AlToke</b><span>Kiosco Don Julio</span>
+  </div>
+  <div class="divider" aria-hidden="true"></div>
+  <div class="turno">Turno <b>08:14</b> · terminal 1</div>
+  <div class="spacer"></div>
+  <span class="state"><i aria-hidden="true"></i> Guardando local</span>
+  <button class="ghost" type="button">Cerrar turno</button>
+</header>
+
+<main>
+  <section class="capture" aria-labelledby="capture-title">
+    <h1 id="capture-title" style="position:absolute;left:-9999px">Capturar venta</h1>
+
+    <div class="scan-field">
+      <label for="code">Código de barras o búsqueda</label>
+      <div class="box">
+        <input id="code" type="text" inputmode="numeric" placeholder="Escaneá el producto…" autocomplete="off">
+        <span class="badge">F2</span>
+      </div>
+    </div>
+
+    <div class="quick" role="group" aria-label="Atajos">
+      <button type="button" data-name="Venta libre $ 1.000" data-price="1000">$ 1.000</button>
+      <button type="button" data-name="Venta libre $ 2.000" data-price="2000">$ 2.000</button>
+      <button type="button" data-name="Venta libre $ 5.000" data-price="5000">$ 5.000</button>
+    </div>
+
+    <div class="numpad" role="group" aria-label="Teclado numérico">
+      <button class="key" type="button">1</button>
+      <button class="key" type="button">2</button>
+      <button class="key" type="button">3</button>
+      <button class="key" type="button">4</button>
+      <button class="key" type="button">5</button>
+      <button class="key" type="button">6</button>
+      <button class="key" type="button">7</button>
+      <button class="key" type="button">8</button>
+      <button class="key" type="button">9</button>
+      <button class="key fn" type="button">Cantidad</button>
+      <button class="key" type="button">0</button>
+      <button class="key fn" type="button">Borrar</button>
+      <button class="key wide fn" type="button">Buscar por nombre</button>
+      <button class="key fn" type="button">Productos</button>
+    </div>
+
+    <div class="libre">
+      <div class="txt">
+        <b>Venta libre</b>
+        Monto sin producto del catálogo
+      </div>
+      <button type="button">+ Agregar monto</button>
+    </div>
+  </section>
+
+  <section class="paper-stage" aria-labelledby="paper-title">
+    <h2 id="paper-title" style="position:absolute;left:-9999px">Ticket de la venta</h2>
+    <div class="paper">
+      <div class="sheet">
+      <div class="paper-head">
+        <div class="logo" aria-hidden="true">K</div>
+        <b>Kiosco Don Julio</b>
+        <span>Av. San Martín 1240 · Salta Capital</span>
+        <span>CUIT 20-28451907-3 · Inicio 08:14</span>
+        <div class="doc">Ticket interno · 22/11/2026 · 14:32</div>
+      </div>
+
+      <div class="paper-lines" id="paper-lines"></div>
+
+      <div class="paper-foot">
+        <div class="sum-row"><span>Subtotal</span><span class="v num" id="subtotal">$ 15.600,00</span></div>
+        <div class="sum-row"><span>IVA 21% incluido</span><span class="v num" id="iva">$ 2.707,44</span></div>
+        <div class="sum-row total"><span>TOTAL</span><span class="v num" id="total">$ 15.600,00</span></div>
+        <div class="pago">
+          <span>Efectivo</span><b class="num">$ 20.000,00</b>
+        </div>
+        <div class="pago">
+          <span>Vuelto</span><b class="num">$ 4.400,00</b>
+        </div>
+        <div class="legal">TICKET INTERNO — no es comprobante fiscal válido.</div>
+      </div>
+      </div>
+      <div class="teeth" aria-hidden="true"></div>
+    </div>
+
+    <div class="actions">
+      <button class="cobrar" type="button" id="cobrar">
+        <span>COBRAR</span>
+        <span class="v num" id="cobrar-amount">$ 15.600,00</span>
+      </button>
+      <button class="anular" type="button" id="anular">ANULAR</button>
+    </div>
+  </section>
+</main>
+
+<script>
+  const fmt = n => '$ ' + n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const items = new Map([
+    ['Coca-Cola 500 ml', { qty: 2, price: 3200 }],
+    ['Alfajor Triple Guaymallén', { qty: 1, price: 1800 }],
+    ['Papas Lays Clásicas 90 g', { qty: 1, price: 2900 }],
+    ['Marlboro Box 20', { qty: 1, price: 4500 }],
+  ]);
+  const paperLines = document.getElementById('paper-lines');
+  const totalEl = document.getElementById('total');
+  const subtotalEl = document.getElementById('subtotal');
+  const ivaEl = document.getElementById('iva');
+  const cobrarEl = document.getElementById('cobrar');
+  const cobrarAmount = document.getElementById('cobrar-amount');
+  const anularEl = document.getElementById('anular');
+
+  function render() {
+    let total = 0;
+    paperLines.innerHTML = '';
+    for (const [name, it] of items) {
+      const lineTotal = it.qty * it.price;
+      total += lineTotal;
+      const el = document.createElement('div');
+      el.className = 'pl';
+      el.innerHTML = `<span class="nm"></span>
+        <span class="amt num">${fmt(lineTotal)}</span>
+        <span class="sub">${it.qty} × ${fmt(it.price)}</span>`;
+      el.querySelector('.nm').textContent = name;
+      paperLines.appendChild(el);
+    }
+    if (!items.size) paperLines.innerHTML = '<p class="paper-empty">Sin ítems.<br>Escaneá un código o usá los montos rápidos.</p>';
+    const iva = Math.round((total - total / 1.21) * 100) / 100;
+    totalEl.textContent = fmt(total);
+    subtotalEl.textContent = fmt(total);
+    ivaEl.textContent = fmt(iva);
+    cobrarAmount.textContent = fmt(total);
+    cobrarEl.disabled = total === 0;
+    anularEl.disabled = total === 0;
+  }
+
+  function add(name, price) {
+    const it = items.get(name) || { qty: 0, price };
+    it.qty += 1; items.set(name, it);
+    render();
+  }
+
+  document.querySelector('.quick').addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if (b) add(b.dataset.name, Number(b.dataset.price));
+  });
+
+  document.querySelector('.numpad').addEventListener('click', e => {
+    const b = e.target.closest('.key');
+    if (!b) return;
+    const label = b.textContent.trim();
+    if (label === 'Borrar') { const last = [...items.keys()].pop(); if (last) { items.delete(last); render(); } return; }
+    if (label === '1' || label === '2' || label === '3') add(`Venta libre $ ${label}00`, Number(label) * 100);
+  });
+
+  document.getElementById('anular').addEventListener('click', () => {
+    const last = [...items.keys()].pop();
+    if (last) { items.delete(last); render(); }
+  });
+
+  render();
+</script>
+</body>
+</html>

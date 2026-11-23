@@ -1,5 +1,7 @@
 /**
- * Pantalla del POS (T7): grilla de productos a la izquierda, venta y cobro a la derecha.
+ * Pantalla del POS (T4): bandeja táctil —riel de categorías, grilla de productos y bandeja de
+ * venta anclada abajo— sobre `PanelVenta`, con el cobro al alcance del pulgar. El cobro en sí
+ * (T5) es la hoja que sube sobre esta pantalla.
  *
  * Esta capa **no calcula plata**: los totales vienen de `calcularTotales`, el stock proyectado y
  * el resumen del turno del libro, y el arqueo de `armarArqueo`. Todo lo que escribe eventos pasa
@@ -19,14 +21,16 @@ import { CATALOGO, STOCK_INICIAL } from './catalogo'
 import type { ProductoDeCatalogo } from './catalogo'
 import { AperturaCaja } from './components/AperturaCaja'
 import { Encabezado } from './components/Encabezado'
-import { GrillaProductos } from './components/GrillaProductos'
 import { PanelCierre } from './components/PanelCierre'
 import { PanelMarca } from './components/PanelMarca'
-import { PanelVenta } from './components/PanelVenta'
 import { ResumenArqueo } from './components/ResumenArqueo'
-import { Ticket } from './components/Ticket'
+import { motion } from 'motion/react'
+import { HojaCobro } from './components/bandeja/HojaCobro'
+import { PantallaTicket } from './components/bandeja/PantallaTicket'
+import { PantallaVenta } from './components/bandeja/PantallaVenta'
 import { centavosDesdePesos, pesosDesdeCentavos } from './formato'
 import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
+import { entrada, useMovimiento } from './movimiento'
 import { crearCaja } from './pos/caja'
 import type { Caja, EstadoCaja, PagoSolicitado, VentaCobrada } from './pos/caja'
 import { calcularTotales } from './pos/venta'
@@ -60,6 +64,7 @@ export function App({ store }: AppProps) {
   const [esTarjeta, setEsTarjeta] = useState(false)
   const [efectivoPesos, setEfectivoPesos] = useState(() => pesosDesdeCentavos(0))
   const [venta, setVenta] = useState<VentaCobrada | null>(null)
+  const [hojaCobro, setHojaCobro] = useState(false)
 
   const [panelCierre, setPanelCierre] = useState(false)
   const [conteo, setConteo] = useState<ConteoPorDenominacion>({})
@@ -67,6 +72,9 @@ export function App({ store }: AppProps) {
 
   const [marca, setMarca] = useState<MarcaTenant>(() => cargarMarca(TENANT_ID))
   const [panelMarca, setPanelMarca] = useState(false)
+
+  // M1: entrar a la venta es el primer momento animado (T8, `movimiento.ts`).
+  const conMovimiento = useMovimiento()
 
   // La marca se aplica sobre la raíz y no sobre un componente: los tokens bañan el POS y el ticket
   // a la vez, que es justo el contrato de las cinco variables (`0001` §7).
@@ -110,6 +118,11 @@ export function App({ store }: AppProps) {
     setEfectivoPesos(pesosDesdeCentavos(totales.totalCentavos))
   }, [totales.totalCentavos])
 
+  // Sin líneas no hay nada que cobrar: si la venta se vacía (o la cobra la caja) la hoja se va.
+  useEffect(() => {
+    if (lineas.length === 0) setHojaCobro(false)
+  }, [lineas.length])
+
   const agregarProducto = useCallback((producto: ProductoDeCatalogo) => {
     setError(null)
     setLineas((previas) => {
@@ -143,6 +156,26 @@ export function App({ store }: AppProps) {
         .filter((linea) => linea.cantidad > 0),
     )
   }, [])
+
+  /** Sacar la línea entera: la venta sigue abierta, sólo deja de incluir ese producto. */
+  const quitarLinea = useCallback((sku: string) => {
+    setLineas((previas) => previas.filter((linea) => linea.sku !== sku))
+  }, [])
+
+  const vaciarVenta = useCallback(() => {
+    setLineas([])
+  }, [])
+
+  /**
+   * COBRAR abre la hoja de cobro; la venta todavía no se escribió. Una venta vacía no la abre:
+   * no hay medio de pago que elegir ni total que cubrir.
+   */
+  const abrirCobro = useCallback(() => {
+    if (lineas.length === 0) return
+
+    setError(null)
+    setHojaCobro(true)
+  }, [lineas.length])
 
   async function abrirTurno(fondoPesos: string): Promise<void> {
     if (caja === null) return
@@ -252,8 +285,10 @@ export function App({ store }: AppProps) {
     contadoCentavos: contarDenominaciones(conteo),
   })
 
+  const abierto = estado.turno.abierto
+
   return (
-    <div className="pos">
+    <div className={abierto ? 'flex min-h-dvh flex-col' : 'pos'}>
       <Encabezado
         nombreTenant={NOMBRE_TENANT}
         terminalId={TERMINAL_ID}
@@ -263,70 +298,125 @@ export function App({ store }: AppProps) {
         logoUrl={marca.logoUrl}
       />
 
-      {error !== null && (
-        <p className="pos__error" role="alert">
+      {/*
+       * Con el cierre abierto el aviso viaja adentro de esa capa: es la única visible, así que
+       * repetirlo arriba dejaría el error tapado o duplicado en el árbol.
+       */}
+      {error !== null && !panelCierre && (
+        <p
+          className={
+            abierto ? 'pos__error mx-[var(--page-margin)] my-[var(--space-sm)]' : 'pos__error'
+          }
+          role="alert"
+        >
           {error}
         </p>
       )}
 
-      {!estado.turno.abierto && (
-        <AperturaCaja fondoPorDefecto={FONDO_POR_DEFECTO} onAbrir={abrirTurno} />
-      )}
+      {!abierto && <AperturaCaja fondoPorDefecto={FONDO_POR_DEFECTO} onAbrir={abrirTurno} />}
 
-      {estado.turno.abierto && (
-        <div className="pos__paneles">
-          <GrillaProductos
-            productos={CATALOGO}
-            stock={estado.stock}
-            onAgregar={agregarProducto}
-          />
-          <PanelVenta
+      {abierto && (
+        <>
+          <motion.div
+            {...entrada(conMovimiento, { desde: 'abajo' })}
+            className="grid h-[calc(100dvh-var(--size-header))] shrink-0 grid-rows-[minmax(0,1fr)]"
+          >
+            <PantallaVenta
+              productos={CATALOGO}
+              stock={estado.stock}
+              onAgregar={agregarProducto}
+              lineas={lineas}
+              totales={totales}
+              onCambiarCantidad={cambiarCantidad}
+              onQuitar={quitarLinea}
+              onVaciar={vaciarVenta}
+              onCobrar={abrirCobro}
+            />
+          </motion.div>
+
+          {/*
+           * La hoja de cobro sube sobre la venta y sobrevive cerrada: sus controles no se
+           * desmontan, así el cajero vuelve a la venta sin perder lo que había elegido.
+           */}
+          <HojaCobro
+            abierta={hojaCobro}
             lineas={lineas}
             totales={totales}
             efectivoPesos={efectivoPesos}
             esTarjeta={esTarjeta}
-            onCambiarCantidad={cambiarCantidad}
             onCambiarEfectivo={setEfectivoPesos}
-            onCambiarTarjeta={setEsTarjeta}
-            onCobrar={cobrar}
+            onElegirTarjeta={setEsTarjeta}
+            onConfirmar={cobrar}
+            onCerrar={() => setHojaCobro(false)}
           />
+        </>
+      )}
+
+      {/*
+       * Marca y último cierre siguen con `pos.css`: en el turno abierto van apilados debajo de la
+       * bandeja, con el margen de página que antes ponía `.pos`. El ticket ya no vive acá: cobrar
+       * abre su propia pantalla (T6).
+       *
+       * El bloque no existe mientras no tenga nada adentro: un contenedor vacío con padding deja
+       * una franja debajo de la bandeja y arrastra la página 40 px más abajo del viewport.
+       */}
+      {(panelMarca || ultimoCierre !== null) && (
+        <div
+          className={
+            abierto
+              ? 'flex flex-col gap-[var(--space-md)] px-[var(--page-margin)] pb-[var(--space-lg)]'
+              : 'contents'
+          }
+        >
+          {panelMarca && (
+            <PanelMarca
+              marca={marca}
+              nombreTenant={NOMBRE_TENANT}
+              onCambiar={aceptarMarca}
+              onRestablecer={restablecerMarca}
+              onCerrar={() => setPanelMarca(false)}
+            />
+          )}
+
+          {ultimoCierre !== null && (
+            <section className="ultimo-cierre" aria-label="Último cierre">
+              <h2 className="ultimo-cierre__titulo">Último cierre</h2>
+              <ResumenArqueo arqueo={ultimoCierre} />
+            </section>
+          )}
         </div>
       )}
 
-      {panelMarca && (
-        <PanelMarca
-          marca={marca}
+      {/*
+       * El ticket (T6) se queda en pantalla hasta que el cajero lo entrega: es la confirmación de
+       * que la venta está en el libro y el vuelto que tiene que dar. Cerrarla es "Nueva venta".
+       */}
+      {venta !== null && (
+        <PantallaTicket
+          venta={venta}
           nombreTenant={NOMBRE_TENANT}
-          onCambiar={aceptarMarca}
-          onRestablecer={restablecerMarca}
-          onCerrar={() => setPanelMarca(false)}
+          terminalId={TERMINAL_ID}
+          logoUrl={marca.logoUrl}
+          onNuevaVenta={() => setVenta(null)}
         />
       )}
 
+      {/*
+       * El cierre (T7) es una pantalla, no un panel al costado de la venta: cuenta billete por
+       * billete en 1280×800 y deja el veredicto y las acciones al alcance del pulgar, así que vive
+       * en su propia capa (`fixed inset-0`) y no en el flujo de la bandeja.
+       */}
       {panelCierre && estado.turno.abierto && (
         <PanelCierre
           denominaciones={DENOMINACIONES}
           conteo={conteo}
           arqueo={arqueoEnCurso}
+          turno={estado.turno}
+          error={error}
           onCambiarCantidad={cambiarConteo}
+          onVaciar={() => setConteo({})}
           onConfirmar={confirmarCierre}
           onCancelar={() => setPanelCierre(false)}
-        />
-      )}
-
-      {ultimoCierre !== null && (
-        <section className="ultimo-cierre" aria-label="Último cierre">
-          <h2 className="ultimo-cierre__titulo">Último cierre</h2>
-          <ResumenArqueo arqueo={ultimoCierre} />
-        </section>
-      )}
-
-      {venta !== null && (
-        <Ticket
-          venta={venta}
-          nombreTenant={NOMBRE_TENANT}
-          terminalId={TERMINAL_ID}
-          logoUrl={marca.logoUrl}
         />
       )}
     </div>

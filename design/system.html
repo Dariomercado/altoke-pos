@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<title>AlToke — sistema de diseño</title>
+<style>
+  :root, [data-theme='light'] {
+    color-scheme: light;
+    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+    --space-xs: .25rem; --space-sm: .5rem; --space-md: 1rem;
+    --space-lg: 1.5rem; --space-xl: 2.5rem;
+    --gutter: 1rem; --gutter-desktop: 1.5rem;
+    --page-margin: 1rem; --page-margin-tablet: 1.5rem; --page-margin-desktop: 2rem;
+
+    --radius-xs: .125rem; --radius-sm: .25rem; --radius-md: .5rem;
+    --radius-lg: .75rem; --radius-full: 9999px;
+
+    --size-touch-min: 2.75rem; --size-control: 3rem; --size-header: 4rem;
+
+    --shadow-panel: 0 1px 8px rgb(0 0 0 / 4%);
+    --shadow-overlay: 0 20px 25px -5px rgb(0 0 0 / 50%), 0 8px 10px -6px rgb(79 70 229 / 12%);
+    --focus-ring-width: 2px;
+
+    --brand-primary: #4d44e3; --brand-accent: #005049;
+    --brand-surface: #fbf8ff; --brand-text: #1b1b21; --brand-logo: none;
+
+    --color-primary: var(--brand-primary);
+    --color-on-primary: #ffffff;
+    --color-primary-container: #e2dfff;
+    --color-on-primary-container: #0f0069;
+    --color-secondary: var(--brand-accent);
+    --color-on-secondary: #ffffff;
+    --color-secondary-container: #89f5e7;
+    --color-on-secondary-container: #00201d;
+    --color-tertiary: #005236;
+    --color-on-tertiary: #ffffff;
+    --color-tertiary-container: #6ffbbe;
+    --color-on-tertiary-container: #002113;
+    --color-error: #93000a;
+    --color-on-error: #ffffff;
+    --color-error-container: #ffdad6;
+    --color-on-error-container: #690005;
+    --color-surface: var(--brand-surface);
+    --color-surface-dim: #dad9e1;
+    --color-surface-bright: #fbf8ff;
+    --color-surface-container-lowest: #ffffff;
+    --color-surface-container-low: #f5f2fa;
+    --color-surface-container: #efecf4;
+    --color-surface-container-high: #e9e7ee;
+    --color-surface-container-highest: #e4e1e9;
+    --color-on-surface: var(--brand-text);
+    --color-on-surface-variant: #464555;
+    --color-outline: #777586;
+    --color-outline-variant: #c7c4d8;
+    --color-placeholder: var(--color-on-surface-variant);
+    --color-inverse-surface: #0b1326;
+    --color-inverse-on-surface: #dae2fd;
+  }
+
+  [data-theme='dark'] {
+    color-scheme: dark;
+    --brand-primary: #c3c0ff; --brand-accent: #6bd8cb;
+    --brand-surface: #0b1326; --brand-text: #dae2fd; --brand-logo: none;
+
+    --color-primary: var(--brand-primary);
+    --color-on-primary: #1d00a5;
+    --color-primary-container: #4f46e5;
+    --color-on-primary-container: #dad7ff;
+    --color-secondary: var(--brand-accent);
+    --color-on-secondary: #003732;
+    --color-secondary-container: #29a195;
+    --color-on-secondary-container: #00302b;
+    --color-tertiary: #4edea3;
+    --color-on-tertiary: #003824;
+    --color-tertiary-container: #006e4b;
+    --color-on-tertiary-container: #67f4b7;
+    --color-error: #ffb4ab;
+    --color-on-error: #690005;
+    --color-error-container: #93000a;
+    --color-on-error-container: #ffdad6;
+    --color-surface: var(--brand-surface);
+    --color-surface-dim: #0b1326;
+    --color-surface-bright: #31394d;
+    --color-surface-container-lowest: #060e20;
+    --color-surface-container-low: #131b2e;
+    --color-surface-container: #171f33;
+    --color-surface-container-high: #222a3d;
+    --color-surface-container-highest: #2d3449;
+    --color-on-surface: var(--brand-text);
+    --color-on-surface-variant: #c7c4d8;
+    --color-outline: #918fa1;
+    --color-outline-variant: #464555;
+    --color-placeholder: var(--color-on-surface-variant);
+    --color-inverse-surface: #dae2fd;
+    --color-inverse-on-surface: #283044;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--color-surface);
+    color: var(--color-on-surface);
+    font-family: var(--font-ui);
+    font-size: .9375rem;
+    line-height: 1.5rem;
+    padding: var(--page-margin-desktop);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2 { font-family: var(--font-sans); margin: 0; }
+  h1 { font-size: 2rem; line-height: 2.5rem; letter-spacing: -.02em; font-weight: 700; }
+  h2 { font-size: 1.25rem; line-height: 1.75rem; letter-spacing: -.01em; font-weight: 600; margin-bottom: var(--space-md); }
+  p { margin: 0; color: var(--color-on-surface-variant); }
+  code { font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size: .8125rem; }
+
+  header.top {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: var(--space-lg); padding-bottom: var(--space-lg);
+    border-bottom: 1px solid var(--color-outline-variant);
+    margin-bottom: var(--space-xl);
+  }
+  header.top p { max-width: 52ch; margin-top: var(--space-sm); }
+
+  button.theme {
+    min-height: var(--size-control); min-width: var(--size-control);
+    padding: 0 var(--space-lg);
+    font: inherit; font-weight: 600;
+    border: 1px solid var(--color-outline);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-container-lowest);
+    color: var(--color-on-surface);
+    cursor: pointer;
+  }
+  button.theme:hover { background: var(--color-surface-container); }
+
+  section { margin-bottom: var(--space-xl); }
+  .grid { display: grid; gap: var(--space-md); }
+  .cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cols-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .swatch {
+    border: 1px solid var(--color-outline-variant);
+    border-radius: var(--radius-md); overflow: hidden;
+  }
+  .swatch .chip { height: 4.5rem; }
+  .swatch .meta { padding: var(--space-sm) var(--space-md); background: var(--color-surface-container-lowest); }
+  .swatch .meta b { display: block; font-family: ui-monospace, Menlo, monospace; font-size: .75rem; font-weight: 600; }
+  .swatch .meta span { font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase; color: var(--color-on-surface-variant); }
+
+  table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+  th, td { text-align: left; padding: var(--space-sm) var(--space-md); border-bottom: 1px solid var(--color-outline-variant); vertical-align: baseline; }
+  th { font-size: .6875rem; letter-spacing: .04em; text-transform: uppercase; color: var(--color-on-surface-variant); font-weight: 700; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+
+  .type-row { display: flex; align-items: baseline; gap: var(--space-lg); padding: var(--space-md) 0; border-bottom: 1px solid var(--color-outline-variant); }
+  .type-row .sample { flex: 1; }
+  .type-row .token { width: 18rem; font-family: ui-monospace, Menlo, monospace; font-size: .75rem; color: var(--color-on-surface-variant); }
+  .type-row .spec { width: 12rem; text-align: right; font-size: .75rem; font-variant-numeric: tabular-nums; color: var(--color-on-surface-variant); }
+
+  .bar { height: 1rem; background: var(--color-primary-container); border-radius: var(--radius-xs); }
+
+  .radius-demo, .space-demo { display: flex; align-items: center; gap: var(--space-sm); }
+  .radius-demo div { width: 4rem; height: 4rem; background: var(--color-secondary-container); border: 1px solid var(--color-outline); }
+  .space-demo div { height: 1.25rem; background: var(--color-primary-container); }
+
+  .elev { display: flex; gap: var(--space-md); }
+  .elev > div { flex: 1; padding: var(--space-lg); border-radius: var(--radius-lg); background: var(--color-surface-container-lowest); font-size: .75rem; color: var(--color-on-surface-variant); }
+
+  /* Componentes */
+  .btn {
+    min-height: var(--size-control); padding: 0 var(--space-lg);
+    font: inherit; font-weight: 600; font-size: .875rem;
+    border-radius: var(--radius-md); border: 1px solid transparent;
+    cursor: pointer; display: inline-flex; align-items: center; gap: var(--space-sm);
+  }
+  .btn-primary { background: var(--color-primary); color: var(--color-on-primary); }
+  .btn-secondary { background: var(--color-surface-container-lowest); color: var(--color-on-surface); border-color: var(--color-outline); }
+  .btn-ghost { background: transparent; color: var(--color-primary); }
+  .btn:disabled { background: var(--color-surface-container-highest); color: var(--color-on-surface-variant); cursor: not-allowed; }
+
+  .panel { background: var(--color-surface-container-lowest); border-radius: var(--radius-lg); padding: var(--space-lg); box-shadow: var(--shadow-panel); }
+  .tile {
+    min-height: 5rem; border-radius: var(--radius-md);
+    background: var(--color-surface-container-low);
+    border: 1px solid var(--color-outline-variant);
+    padding: var(--space-md); display: flex; flex-direction: column; justify-content: space-between;
+    text-align: left; font: inherit; cursor: pointer; color: var(--color-on-surface);
+  }
+  .tile b { font-size: .875rem; font-weight: 600; }
+  .tile span { font-variant-numeric: tabular-nums; font-size: 1.75rem; line-height: 2rem; letter-spacing: -.02em; font-weight: 700; }
+  .total { font-variant-numeric: tabular-nums; font-size: 1.75rem; line-height: 2rem; letter-spacing: -.02em; font-weight: 700; }
+
+  .field { display: flex; flex-direction: column; gap: var(--space-xs); }
+  .field label { font-size: .75rem; letter-spacing: .02em; font-weight: 600; color: var(--color-on-surface-variant); }
+  .field input {
+    min-height: var(--size-control); padding: 0 var(--space-md);
+    border: 1px solid var(--color-outline); border-radius: var(--radius-md);
+    background: var(--color-surface-container-lowest); color: var(--color-on-surface);
+    font: inherit; font-variant-numeric: tabular-nums;
+  }
+  .field input::placeholder { color: var(--color-placeholder); }
+
+  :where(:focus-visible) { outline: var(--focus-ring-width) solid var(--color-primary); outline-offset: 2px; }
+
+  .row { display: flex; flex-wrap: wrap; gap: var(--space-md); align-items: center; }
+  .legend { font-size: .75rem; color: var(--color-on-surface-variant); margin-top: var(--space-sm); }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1>AlToke — sistema de diseño</h1>
+    <p>Tokens sincronizados desde <code>packages/ui/src/tokens.css</code>. Claro por defecto, oscuro opcional.
+       Cinco huecos de marca por tenant; el resto se deriva.</p>
+  </div>
+  <button class="theme" id="toggle" type="button" aria-live="polite">Ver tema oscuro</button>
+</header>
+
+<section aria-labelledby="marca">
+  <h2 id="marca">Marca del tenant (5 huecos)</h2>
+  <div class="grid cols-5">
+    <div class="swatch"><div class="chip" style="background:var(--brand-primary)"></div><div class="meta"><b>--brand-primary</b><span>acción</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--brand-accent)"></div><div class="meta"><b>--brand-accent</b><span>acento</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--brand-surface)"></div><div class="meta"><b>--brand-surface</b><span>fondo</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--brand-text)"></div><div class="meta"><b>--brand-text</b><span>texto</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-container-high);display:grid;place-items:center;font-size:.6875rem;color:var(--color-on-surface-variant)">logo</div><div class="meta"><b>--brand-logo</b><span>hueco</span></div></div>
+  </div>
+  <p class="legend">Restricción vigente: sólo fondos claros. Una marca oscura se rechaza con el ratio medido.</p>
+</section>
+
+<section aria-labelledby="paleta">
+  <h2 id="paleta">Roles de color</h2>
+  <div class="grid cols-5">
+    <div class="swatch"><div class="chip" style="background:var(--color-primary)"></div><div class="meta"><b>--color-primary</b><span>sobre: #fff</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-primary-container)"></div><div class="meta"><b>--color-primary-container</b><span>selección</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-secondary)"></div><div class="meta"><b>--color-secondary</b><span>acento</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-secondary-container)"></div><div class="meta"><b>--color-secondary-container</b><span>confirmación</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-tertiary)"></div><div class="meta"><b>--color-tertiary</b><span>éxito</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-error)"></div><div class="meta"><b>--color-error</b><span>anular</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-error-container)"></div><div class="meta"><b>--color-error-container</b><span>alerta</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-on-surface)"></div><div class="meta"><b>--color-on-surface</b><span>texto</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-on-surface-variant)"></div><div class="meta"><b>--color-on-surface-variant</b><span>secundario</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-outline)"></div><div class="meta"><b>--color-outline</b><span>borde control</span></div></div>
+  </div>
+  <h2 style="margin-top:var(--space-lg);font-size:.875rem">Escalera de superficies</h2>
+  <div class="grid cols-5">
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-container-lowest)"></div><div class="meta"><b>-lowest</b><span>panel</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-container-low)"></div><div class="meta"><b>-low</b><span>tile</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-container)"></div><div class="meta"><b>-container</b><span>franja</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-container-high)"></div><div class="meta"><b>-high</b><span>hundido</span></div></div>
+    <div class="swatch"><div class="chip" style="background:var(--color-surface-container-highest)"></div><div class="meta"><b>-highest</b><span>deshabilitado</span></div></div>
+  </div>
+</section>
+
+<section aria-labelledby="tipo">
+  <h2 id="tipo">Escala tipográfica</h2>
+  <div class="type-row"><div class="token">--text-display-lg</div><div class="sample" style="font-family:var(--font-sans);font-size:3rem;line-height:3.5rem;letter-spacing:-.03em;font-weight:700;font-variant-numeric:tabular-nums">$ 12.480,00</div><div class="spec">3rem / 3.5rem · 700</div></div>
+  <div class="type-row"><div class="token">--text-headline-lg</div><div class="sample" style="font-family:var(--font-sans);font-size:2rem;line-height:2.5rem;letter-spacing:-.02em;font-weight:700">Cierre de caja</div><div class="spec">2rem / 2.5rem · 700</div></div>
+  <div class="type-row"><div class="token">--text-headline-md</div><div class="sample" style="font-family:var(--font-sans);font-size:1.5rem;line-height:2rem;letter-spacing:-.015em;font-weight:600">Venta actual</div><div class="spec">1.5rem / 2rem · 600</div></div>
+  <div class="type-row"><div class="token">--text-headline-sm</div><div class="sample" style="font-family:var(--font-sans);font-size:1.25rem;line-height:1.75rem;letter-spacing:-.01em;font-weight:600">Arqueo por denominación</div><div class="spec">1.25rem / 1.75rem · 600</div></div>
+  <div class="type-row"><div class="token">--text-body-lg</div><div class="sample" style="font-size:1.125rem;line-height:1.75rem">TICKET INTERNO — no es comprobante fiscal válido.</div><div class="spec">1.125rem / 1.75rem · 400</div></div>
+  <div class="type-row"><div class="token">--text-body-md</div><div class="sample" style="font-size:.9375rem;line-height:1.5rem">Alfajor Triple — 2 × $ 1.200,00</div><div class="spec">.9375rem / 1.5rem · 400</div></div>
+  <div class="type-row"><div class="token">--text-body-sm</div><div class="sample" style="font-size:.8125rem;line-height:1.25rem">Turno abierto 08:14 · terminal 1</div><div class="spec">.8125rem / 1.25rem · 400</div></div>
+  <div class="type-row"><div class="token">--text-label-lg</div><div class="sample" style="font-size:.875rem;line-height:1.25rem;letter-spacing:.01em;font-weight:600">COBRAR</div><div class="spec">.875rem / 1.25rem · 600</div></div>
+  <div class="type-row"><div class="token">--text-label-md</div><div class="sample" style="font-size:.75rem;line-height:1rem;letter-spacing:.02em;font-weight:600">Subtotal · IVA · Total</div><div class="spec">.75rem / 1rem · 600</div></div>
+  <div class="type-row"><div class="token">--text-label-sm</div><div class="sample" style="font-size:.6875rem;line-height:0.875rem;letter-spacing:.04em;font-weight:700;text-transform:uppercase">Sin turno abierto</div><div class="spec">.6875rem / .875rem · 700</div></div>
+  <div class="type-row"><div class="token">--text-data-pos</div><div class="sample" style="font-size:1.75rem;line-height:2rem;letter-spacing:-.02em;font-weight:700;font-variant-numeric:tabular-nums">$ 4.320,00</div><div class="spec">1.75rem / 2rem · 700</div></div>
+  <p class="legend"><code>--font-sans</code> Plus Jakarta Sans con fallback de sistema. <code>--font-ui</code> Inter con fallback. Sin CDN: el POS arranca sin internet. Todo número lleva <code>tabular-nums</code>.</p>
+</section>
+
+<section aria-labelledby="esp">
+  <h2 id="esp">Espaciado, radios, medidas</h2>
+  <div class="grid cols-2" style="align-items:start">
+    <div>
+      <table>
+        <caption style="text-align:left;font-size:.6875rem;letter-spacing:.04em;text-transform:uppercase;color:var(--color-on-surface-variant);padding-bottom:.5rem">Espaciado</caption>
+        <tbody>
+          <tr><td><code>--space-xs</code></td><td class="num">0.25rem</td><td><div class="bar" style="width:.25rem"></div></td></tr>
+          <tr><td><code>--space-sm</code></td><td class="num">0.5rem</td><td><div class="bar" style="width:.5rem"></div></td></tr>
+          <tr><td><code>--space-md</code></td><td class="num">1rem</td><td><div class="bar" style="width:1rem"></div></td></tr>
+          <tr><td><code>--space-lg</code></td><td class="num">1.5rem</td><td><div class="bar" style="width:1.5rem"></div></td></tr>
+          <tr><td><code>--space-xl</code></td><td class="num">2.5rem</td><td><div class="bar" style="width:2.5rem"></div></td></tr>
+        </tbody>
+      </table>
+      <table style="margin-top:var(--space-md)">
+        <caption style="text-align:left;font-size:.6875rem;letter-spacing:.04em;text-transform:uppercase;color:var(--color-on-surface-variant);padding-bottom:.5rem">Medidas táctiles</caption>
+        <tbody>
+          <tr><td><code>--size-touch-min</code></td><td class="num">2.75rem</td><td>44 px, mínimo de target</td></tr>
+          <tr><td><code>--size-control</code></td><td class="num">3rem</td><td>48 px, control estándar</td></tr>
+          <tr><td><code>--size-header</code></td><td class="num">4rem</td><td>barra superior</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div>
+      <div class="radius-demo" style="margin-bottom:var(--space-md)">
+        <div style="border-radius:var(--radius-xs)"></div>
+        <div style="border-radius:var(--radius-sm)"></div>
+        <div style="border-radius:var(--radius-md)"></div>
+        <div style="border-radius:var(--radius-lg)"></div>
+        <div style="border-radius:var(--radius-full)"></div>
+      </div>
+      <table>
+        <caption style="text-align:left;font-size:.6875rem;letter-spacing:.04em;text-transform:uppercase;color:var(--color-on-surface-variant);padding-bottom:.5rem">Radios</caption>
+        <tbody>
+          <tr><td><code>--radius-xs</code></td><td class="num">0.125rem</td><td>marcas, barras</td></tr>
+          <tr><td><code>--radius-sm</code></td><td class="num">0.25rem</td><td>chips chicos</td></tr>
+          <tr><td><code>--radius-md</code></td><td class="num">0.5rem</td><td>controles, tiles</td></tr>
+          <tr><td><code>--radius-lg</code></td><td class="num">0.75rem</td><td>contenedores</td></tr>
+          <tr><td><code>--radius-full</code></td><td class="num">9999px</td><td>chips, avatares</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <h2 style="margin-top:var(--space-lg);font-size:.875rem">Elevación</h2>
+  <div class="elev">
+    <div style="box-shadow:var(--shadow-panel)"><code>--shadow-panel</code><br>0 1px 8px rgb(0 0 0 / 4%)<br>Panel en reposo.</div>
+    <div style="box-shadow:var(--shadow-overlay)"><code>--shadow-overlay</code><br>0 20px 25px -5px rgb(0 0 0 / 50%)<br>Overlay, modal, ticket.</div>
+    <div style="border:1px solid var(--color-outline-variant)"><code>sin sombra</code><br>Un panel no lleva borde y sombra a la vez.</div>
+  </div>
+</section>
+
+<section aria-labelledby="comp">
+  <h2 id="comp">Componentes</h2>
+  <div class="grid cols-2">
+    <div class="panel">
+      <p style="font-size:.6875rem;letter-spacing:.04em;text-transform:uppercase;font-weight:700;margin-bottom:var(--space-md)">Acciones</p>
+      <div class="row">
+        <button class="btn btn-primary" type="button">COBRAR $ 4.320,00</button>
+        <button class="btn btn-secondary" type="button">Anular</button>
+        <button class="btn btn-ghost" type="button">Cantidad</button>
+        <button class="btn btn-primary" type="button" disabled>Sin turno</button>
+      </div>
+      <p class="legend">Deshabilitado explica el motivo en el propio texto: nunca un botón gris sin razón.</p>
+    </div>
+    <div class="panel">
+      <p style="font-size:.6875rem;letter-spacing:.04em;text-transform:uppercase;font-weight:700;margin-bottom:var(--space-md)">Campo de búsqueda</p>
+      <div class="field">
+        <label for="q">Buscar producto</label>
+        <input id="q" type="search" placeholder="Código o nombre…" value="">
+      </div>
+      <p class="legend">Placeholder con <code>--color-on-surface-variant</code>: ≥ 4.5:1.</p>
+    </div>
+  </div>
+  <div class="grid cols-4" style="margin-top:var(--space-md)">
+    <button class="tile" type="button"><b>Alfajor Triple</b><span>$ 1.200</span></button>
+    <button class="tile" type="button" style="border-color:var(--color-primary);background:var(--color-primary-container);color:var(--color-on-primary-container)"><b>Coca-Cola 500 ml</b><span>$ 1.850</span></button>
+    <button class="tile" type="button"><b>Papas Lays 90 g</b><span>$ 2.300</span></button>
+    <button class="tile" type="button"><b>Cigarrillos Marlboro Box</b><span>$ 3.450</span></button>
+  </div>
+  <p class="legend">Tiles de producto: mínimo 5rem de alto, precio en <code>--text-data-pos</code>. El seleccionado se distingue por fondo <em>y</em> borde, no sólo por color.</p>
+
+  <div class="panel" style="margin-top:var(--space-md);display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <p style="font-size:.75rem;letter-spacing:.02em;font-weight:600;color:var(--color-on-surface-variant)">TOTAL</p>
+      <div class="total">$ 4.320,00</div>
+    </div>
+    <div style="text-align:right">
+      <p style="font-size:.75rem;font-weight:600;color:var(--color-on-surface-variant)">Vuelto</p>
+      <div class="total" style="color:var(--color-tertiary)">$ 680,00</div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const btn = document.getElementById('toggle');
+  const root = document.documentElement;
+  function apply(theme) {
+    root.dataset.theme = theme;
+    btn.textContent = theme === 'light' ? 'Ver tema oscuro' : 'Ver tema claro';
+  }
+  btn.addEventListener('click', () => apply(root.dataset.theme === 'light' ? 'dark' : 'light'));
+  apply('light');
+</script>
+</body>
+</html>

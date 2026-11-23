@@ -3,6 +3,7 @@
   "compilerOptions": {
     "noEmit": true,
     "paths": {
+      "@/*": ["./apps/web/src/*"],
       "@altoke/domain": ["./packages/domain/src/index.ts"],
       "@altoke/store": ["./packages/store/src/index.ts"],
       "@altoke/contracts": ["./packages/contracts/src/index.ts"],

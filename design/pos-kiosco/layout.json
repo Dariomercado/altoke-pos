@@ -1,0 +1,29 @@
+{
+  "arrangement": "free",
+  "positions": {
+    "system": {
+      "x": 0,
+      "y": 0
+    },
+    "01-mostrador-lineal.html": {
+      "x": 1520,
+      "y": 0
+    },
+    "02-bandeja-tactil.html": {
+      "x": 2880,
+      "y": 0
+    },
+    "03-ticket-directo.html": {
+      "x": 0,
+      "y": 1351
+    },
+    "04-cierre-bandeja.html": {
+      "x": 1722,
+      "y": 1376
+    },
+    "05-cierre-ticket.html": {
+      "x": 2880,
+      "y": 1351
+    }
+  }
+}

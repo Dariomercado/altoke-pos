@@ -363,6 +363,7 @@ describe('tokens.css — la marca del tenant sólo toca cinco variables', () => 
       '--color-surface-container-low',
       '--color-surface-container',
       '--color-surface-container-high',
+      '--color-surface-container-highest',
     ].map((token) => valor(claro, token))
 
     expect(declarados).toEqual([...CONTENEDORES_DEL_TEMA_CLARO])

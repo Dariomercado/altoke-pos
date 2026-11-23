@@ -157,3 +157,33 @@ marca-blanca), se relaja el guard y se actualiza `CONTENEDORES_DEL_TEMA_CLARO`.
 
 Brecha conocida que no se cierra en M1: `--brand-logo` se aplica y se borra como hueco, pero el logo
 visible lo dibuja React; ninguna regla CSS consume la variable todavía.
+
+### L9 — El diseño quedó plano; pedido de una pasada visual
+
+> "retomamos, en que nos quedamos? ejecute pnpm --filter @altoke/web dev en otra terminal y vi el
+> sitio y probe el flujo de venta y cierre de caja funciona pero el diseño se ve muy basico, me
+> dijiste que viera el sitio para que pruebe el flujo o para que vea el diseño tambien? hay que hacer
+> un diseño mas bonito, obvio que la interfaz debe ser intuitiva y sin tanta visual que distraiga pero
+> lo que tenemos ahora es muy plano. podriamos agregar una skill de diseño en el proyecto, sacar
+> alguna skill de skills.sh de vercel, podriamos usar shadcn tambien, y agregar algunas animaciones o
+> motions"
+
+Aclaración: el `dev` server servía para verificar T7/T8 en un navegador real (ticket impreso y marca
+aplicada), no para revisar estética. M1 nunca tuvo una pasada de diseño: hay tokens y CSS funcional.
+
+Decisiones tomadas con el humano:
+
+1. **Artboards primero, stack después.** No se toca código de producción ni se agrega dependencia
+   hasta ver 2–3 direcciones comparables en el canvas. La decisión de shadcn/Tailwind vs. CSS propio
+   se toma contra los artboards, no en abstracto.
+2. **Motion con la librería Motion (framer-motion)** en la implementación. Nota registrada: el
+   `web-animation-design` recomienda CSS para animaciones predeterminadas y JS sólo para las
+   interrumpibles; el peso (~40 KB) se mide sobre el hardware del kiosco antes de comprometerlo.
+3. **Skills de skills.sh instaladas en el repo** (`.agents/skills/`, `skills-lock.json`):
+   `frontend-design` y `web-animation-design`, de `vercel-labs/open-agents`. Auditadas por Snyk
+   (Low Risk, 0 alerts). Se suman al `gentle-design` del harness, que sigue siendo el dueño de la
+   entrega (artboards en `design/`).
+
+Diseño: `design/pos-kiosco/` con tres direcciones de la pantalla de venta —`01-mostrador-lineal`,
+`02-bandeja-tactil`, `03-ticket-directo`— y `design/system.md` + `design/system.html` sincronizados
+desde `packages/ui/src/tokens.css`. Las alternativas no elegidas quedan como referencia.
