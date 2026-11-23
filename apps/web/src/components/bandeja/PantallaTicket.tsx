@@ -70,7 +70,7 @@ export function PantallaTicket({
         </div>
 
         <div
-          className={`inline-grid gap-[var(--space-xs)] justify-self-start rounded-lg border px-[var(--space-lg)] py-[var(--space-md)] ${
+          className={`inline-grid gap-[var(--space-xs)] justify-self-start self-start rounded-lg border px-[var(--space-lg)] py-[var(--space-md)] ${
             hayVuelto
               ? 'border-success bg-success-soft text-success-soft-foreground'
               : 'border-border bg-muted text-foreground'
@@ -90,7 +90,8 @@ export function PantallaTicket({
           <Fila etiqueta="Recibido" valor={formatearCentavos(recibidoCentavos)} tabular />
         </dl>
 
-        <div className="flex flex-wrap items-center gap-[var(--space-md)]">
+        {/* Las acciones cierran la pantalla abajo, como en el artboard (07): el pulgar las busca ahí. */}
+        <div className="mt-auto flex flex-wrap items-center gap-[var(--space-md)]">
           <Button
             type="button"
             onClick={onNuevaVenta}

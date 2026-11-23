@@ -319,7 +319,7 @@ export function App({ store }: AppProps) {
         <>
           <motion.div
             {...entrada(conMovimiento, { desde: 'abajo' })}
-            className="h-[calc(100dvh-var(--size-header))] shrink-0"
+            className="grid h-[calc(100dvh-var(--size-header))] shrink-0 grid-rows-[minmax(0,1fr)]"
           >
             <PantallaVenta
               productos={CATALOGO}
@@ -356,31 +356,36 @@ export function App({ store }: AppProps) {
        * Marca y último cierre siguen con `pos.css`: en el turno abierto van apilados debajo de la
        * bandeja, con el margen de página que antes ponía `.pos`. El ticket ya no vive acá: cobrar
        * abre su propia pantalla (T6).
+       *
+       * El bloque no existe mientras no tenga nada adentro: un contenedor vacío con padding deja
+       * una franja debajo de la bandeja y arrastra la página 40 px más abajo del viewport.
        */}
-      <div
-        className={
-          abierto
-            ? 'flex flex-col gap-[var(--space-md)] px-[var(--page-margin)] pb-[var(--space-lg)]'
-            : 'contents'
-        }
-      >
-        {panelMarca && (
-          <PanelMarca
-            marca={marca}
-            nombreTenant={NOMBRE_TENANT}
-            onCambiar={aceptarMarca}
-            onRestablecer={restablecerMarca}
-            onCerrar={() => setPanelMarca(false)}
-          />
-        )}
+      {(panelMarca || ultimoCierre !== null) && (
+        <div
+          className={
+            abierto
+              ? 'flex flex-col gap-[var(--space-md)] px-[var(--page-margin)] pb-[var(--space-lg)]'
+              : 'contents'
+          }
+        >
+          {panelMarca && (
+            <PanelMarca
+              marca={marca}
+              nombreTenant={NOMBRE_TENANT}
+              onCambiar={aceptarMarca}
+              onRestablecer={restablecerMarca}
+              onCerrar={() => setPanelMarca(false)}
+            />
+          )}
 
-        {ultimoCierre !== null && (
-          <section className="ultimo-cierre" aria-label="Último cierre">
-            <h2 className="ultimo-cierre__titulo">Último cierre</h2>
-            <ResumenArqueo arqueo={ultimoCierre} />
-          </section>
-        )}
-      </div>
+          {ultimoCierre !== null && (
+            <section className="ultimo-cierre" aria-label="Último cierre">
+              <h2 className="ultimo-cierre__titulo">Último cierre</h2>
+              <ResumenArqueo arqueo={ultimoCierre} />
+            </section>
+          )}
+        </div>
+      )}
 
       {/*
        * El ticket (T6) se queda en pantalla hasta que el cajero lo entrega: es la confirmación de
