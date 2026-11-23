@@ -52,6 +52,22 @@ async function abrirCaja(user: ReturnType<typeof userEvent.setup>): Promise<void
   await screen.findByText(/turno abierto/i)
 }
 
+/**
+ * Margen para las esperas que dependen de un trabajo asíncrono de la app.
+ *
+ * Cobrar y cerrar el turno escriben el libro y **después** releen la proyección para pintarla
+ * (`setEstado(await caja.estado())` en `App.tsx`), con un `await` en el medio: el botón vuelve y
+ * la pantalla todavía muestra el estado anterior por un instante —y, cerrando, hay un render
+ * intermedio real, con el panel ya cerrado y el turno todavía abierto—. RTL espera 1 s por
+ * defecto, y con la suite entera compitiendo por CPU esa ventana no alcanzaba: el cierre fallaba
+ * en una de cada tantas corridas completas con «Unable to find an element with the text: /turno
+ * cerrado/i».
+ *
+ * El margen es para el reloj de la máquina, no para la app: si el estado no llega, el test sigue
+ * fallando. Se usa en las esperas que dependen del estado conciliado, no en cada `await`.
+ */
+const ESPERA_DE_ESTADO = { timeout: 5_000 }
+
 /** La teja del alfajor: el botón de la grilla, no los +/- de la venta. */
 function tejaDeAlfajor(): HTMLElement {
   return screen.getByRole('button', { name: /^Alfajor triple/ })
@@ -114,8 +130,8 @@ describe('POS — cobrar e imprimir', () => {
 
     await waitFor(() => {
       expect(tejaDeAlfajor().textContent).toContain('Stock: 22')
-    })
-    expect(screen.getByTestId('total-turno').textContent).toBe(totalEsperado)
+      expect(screen.getByTestId('total-turno').textContent).toBe(totalEsperado)
+    }, ESPERA_DE_ESTADO)
 
     await user.click(screen.getByRole('button', { name: 'Imprimir ticket' }))
     expect(imprimir).toHaveBeenCalledTimes(1)
@@ -202,8 +218,14 @@ describe('POS — cerrar la caja', () => {
 
     await user.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
 
-    expect(await screen.findByText(/turno cerrado/i)).toBeDefined()
-    const ultimoCierre = await screen.findByRole('region', { name: 'Último cierre' })
+    // El cierre escribe el evento y relee el libro: el panel se va antes de que la pantalla muestre
+    // el turno cerrado, así que se espera el estado conciliado y no el primer render.
+    expect(await screen.findByText(/turno cerrado/i, undefined, ESPERA_DE_ESTADO)).toBeDefined()
+    const ultimoCierre = await screen.findByRole(
+      'region',
+      { name: 'Último cierre' },
+      ESPERA_DE_ESTADO,
+    )
     expect(ultimoCierre.textContent).toContain('cuadrado')
     expect(screen.getByRole('button', { name: 'Abrir caja' })).toBeDefined()
   })

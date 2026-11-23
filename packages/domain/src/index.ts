@@ -55,3 +55,23 @@ export {
   migrarEvento,
 } from './migraciones.ts'
 export type { CadenaDeMigraciones, CuerpoDeEvento, PasoDeMigracion } from './migraciones.ts'
+
+export {
+  ESTADOS_EMISION,
+  MODOS_FISCALES,
+  emisionInicial,
+  esReintentoVencido,
+  marcarEmitida,
+  marcarFallida,
+  puedeTransicionar,
+  programarReintento,
+  requiereEmisionFiscal,
+  transicionesDe,
+} from './fiscal.ts'
+export type {
+  DatosDeEmision,
+  EmisionFiscal,
+  EstadoEmision,
+  FalloDeEmision,
+  ModoFiscal,
+} from './fiscal.ts'
