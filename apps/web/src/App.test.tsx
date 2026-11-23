@@ -77,6 +77,7 @@ describe('POS — cobrar e imprimir', () => {
     expect((efectivo as HTMLInputElement).value).toBe('24,20')
 
     await user.click(screen.getByRole('button', { name: 'Cobrar' }))
+    await user.click(screen.getByRole('button', { name: 'Cobrar y sacar ticket' }))
 
     const ticket = await screen.findByRole('region', { name: 'Ticket de la venta' })
     expect(ticket.textContent).toContain('24,20')
@@ -120,6 +121,7 @@ describe('POS — cobrar e imprimir', () => {
     await user.click(tejaDeAlfajor())
     await user.click(screen.getByLabelText('Tarjeta (manual)'))
     await user.click(screen.getByRole('button', { name: 'Cobrar' }))
+    await user.click(screen.getByRole('button', { name: 'Cobrar y sacar ticket' }))
 
     const ticket = await screen.findByRole('region', { name: 'Ticket de la venta' })
     expect(ticket.textContent).toContain('Tarjeta')

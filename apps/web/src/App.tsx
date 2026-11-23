@@ -1,6 +1,7 @@
 /**
  * Pantalla del POS (T4): bandeja táctil —riel de categorías, grilla de productos y bandeja de
- * venta anclada abajo— sobre `PanelVenta`, con el cobro al alcance del pulgar.
+ * venta anclada abajo— sobre `PanelVenta`, con el cobro al alcance del pulgar. El cobro en sí
+ * (T5) es la hoja que sube sobre esta pantalla.
  *
  * Esta capa **no calcula plata**: los totales vienen de `calcularTotales`, el stock proyectado y
  * el resumen del turno del libro, y el arqueo de `armarArqueo`. Todo lo que escribe eventos pasa
@@ -24,6 +25,7 @@ import { PanelCierre } from './components/PanelCierre'
 import { PanelMarca } from './components/PanelMarca'
 import { ResumenArqueo } from './components/ResumenArqueo'
 import { Ticket } from './components/Ticket'
+import { HojaCobro } from './components/bandeja/HojaCobro'
 import { PantallaVenta } from './components/bandeja/PantallaVenta'
 import { centavosDesdePesos, pesosDesdeCentavos } from './formato'
 import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
@@ -60,6 +62,7 @@ export function App({ store }: AppProps) {
   const [esTarjeta, setEsTarjeta] = useState(false)
   const [efectivoPesos, setEfectivoPesos] = useState(() => pesosDesdeCentavos(0))
   const [venta, setVenta] = useState<VentaCobrada | null>(null)
+  const [hojaCobro, setHojaCobro] = useState(false)
 
   const [panelCierre, setPanelCierre] = useState(false)
   const [conteo, setConteo] = useState<ConteoPorDenominacion>({})
@@ -110,6 +113,11 @@ export function App({ store }: AppProps) {
     setEfectivoPesos(pesosDesdeCentavos(totales.totalCentavos))
   }, [totales.totalCentavos])
 
+  // Sin líneas no hay nada que cobrar: si la venta se vacía (o la cobra la caja) la hoja se va.
+  useEffect(() => {
+    if (lineas.length === 0) setHojaCobro(false)
+  }, [lineas.length])
+
   const agregarProducto = useCallback((producto: ProductoDeCatalogo) => {
     setError(null)
     setLineas((previas) => {
@@ -152,6 +160,17 @@ export function App({ store }: AppProps) {
   const vaciarVenta = useCallback(() => {
     setLineas([])
   }, [])
+
+  /**
+   * COBRAR abre la hoja de cobro; la venta todavía no se escribió. Una venta vacía no la abre:
+   * no hay medio de pago que elegir ni total que cubrir.
+   */
+  const abrirCobro = useCallback(() => {
+    if (lineas.length === 0) return
+
+    setError(null)
+    setHojaCobro(true)
+  }, [lineas.length])
 
   async function abrirTurno(fondoPesos: string): Promise<void> {
     if (caja === null) return
@@ -264,7 +283,7 @@ export function App({ store }: AppProps) {
   const abierto = estado.turno.abierto
 
   return (
-    <div className={abierto ? 'flex h-dvh flex-col overflow-hidden' : 'pos'}>
+    <div className={abierto ? 'flex min-h-dvh flex-col' : 'pos'}>
       <Encabezado
         nombreTenant={NOMBRE_TENANT}
         terminalId={TERMINAL_ID}
@@ -288,21 +307,37 @@ export function App({ store }: AppProps) {
       {!abierto && <AperturaCaja fondoPorDefecto={FONDO_POR_DEFECTO} onAbrir={abrirTurno} />}
 
       {abierto && (
-        <PantallaVenta
-          productos={CATALOGO}
-          stock={estado.stock}
-          onAgregar={agregarProducto}
-          lineas={lineas}
-          totales={totales}
-          efectivoPesos={efectivoPesos}
-          esTarjeta={esTarjeta}
-          onCambiarCantidad={cambiarCantidad}
-          onQuitar={quitarLinea}
-          onVaciar={vaciarVenta}
-          onCambiarEfectivo={setEfectivoPesos}
-          onCambiarTarjeta={setEsTarjeta}
-          onCobrar={cobrar}
-        />
+        <>
+          <div className="h-[calc(100dvh-var(--size-header))] shrink-0">
+            <PantallaVenta
+              productos={CATALOGO}
+              stock={estado.stock}
+              onAgregar={agregarProducto}
+              lineas={lineas}
+              totales={totales}
+              onCambiarCantidad={cambiarCantidad}
+              onQuitar={quitarLinea}
+              onVaciar={vaciarVenta}
+              onCobrar={abrirCobro}
+            />
+          </div>
+
+          {/*
+           * La hoja de cobro sube sobre la venta y sobrevive cerrada: sus controles no se
+           * desmontan, así el cajero vuelve a la venta sin perder lo que había elegido.
+           */}
+          <HojaCobro
+            abierta={hojaCobro}
+            lineas={lineas}
+            totales={totales}
+            efectivoPesos={efectivoPesos}
+            esTarjeta={esTarjeta}
+            onCambiarEfectivo={setEfectivoPesos}
+            onElegirTarjeta={setEsTarjeta}
+            onConfirmar={cobrar}
+            onCerrar={() => setHojaCobro(false)}
+          />
+        </>
       )}
 
       {/*

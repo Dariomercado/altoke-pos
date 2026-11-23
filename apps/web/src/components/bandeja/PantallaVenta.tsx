@@ -14,13 +14,9 @@ export interface PantallaVentaProps {
   readonly onAgregar: (producto: ProductoDeCatalogo) => void
   readonly lineas: readonly LineaDeVenta[]
   readonly totales: TotalesVenta
-  readonly efectivoPesos: string
-  readonly esTarjeta: boolean
   readonly onCambiarCantidad: (sku: string, delta: number) => void
   readonly onQuitar: (sku: string) => void
   readonly onVaciar: () => void
-  readonly onCambiarEfectivo: (pesos: string) => void
-  readonly onCambiarTarjeta: (esTarjeta: boolean) => void
   readonly onCobrar: () => void
 }
 
@@ -37,13 +33,9 @@ export function PantallaVenta({
   onAgregar,
   lineas,
   totales,
-  efectivoPesos,
-  esTarjeta,
   onCambiarCantidad,
   onQuitar,
   onVaciar,
-  onCambiarEfectivo,
-  onCambiarTarjeta,
   onCobrar,
 }: PantallaVentaProps) {
   const [consulta, setConsulta] = useState('')
@@ -93,13 +85,9 @@ export function PantallaVenta({
         <PanelVenta
           lineas={lineas}
           totales={totales}
-          efectivoPesos={efectivoPesos}
-          esTarjeta={esTarjeta}
           onCambiarCantidad={onCambiarCantidad}
           onQuitar={onQuitar}
           onVaciar={onVaciar}
-          onCambiarEfectivo={onCambiarEfectivo}
-          onCambiarTarjeta={onCambiarTarjeta}
           onCobrar={onCobrar}
         />
       </div>

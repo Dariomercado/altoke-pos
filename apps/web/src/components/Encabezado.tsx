@@ -33,7 +33,7 @@ export function Encabezado({
   const logo = logoDeMarca(logoUrl)
 
   return (
-    <header className="flex min-h-[var(--size-header)] shrink-0 flex-wrap items-center gap-[var(--space-md)] border-b border-border bg-card px-[var(--page-margin-desktop)] py-[var(--space-sm)]">
+    <header className="flex h-[var(--size-header)] shrink-0 items-center gap-[var(--space-md)] border-b border-border bg-card px-[var(--page-margin-desktop)] py-[var(--space-sm)]">
       {logo === undefined ? (
         <span
           aria-hidden="true"

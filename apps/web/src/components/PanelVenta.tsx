@@ -6,34 +6,28 @@ import { formatearCentavos } from '../formato'
 export interface PanelVentaProps {
   readonly lineas: readonly LineaDeVenta[]
   readonly totales: TotalesVenta
-  readonly efectivoPesos: string
-  readonly esTarjeta: boolean
   readonly onCambiarCantidad: (sku: string, delta: number) => void
   readonly onQuitar: (sku: string) => void
   readonly onVaciar: () => void
-  readonly onCambiarEfectivo: (pesos: string) => void
-  readonly onCambiarTarjeta: (esTarjeta: boolean) => void
+  /** Abre la hoja de cobro: acá termina la bandeja y empieza el cobro (T5). */
   readonly onCobrar: () => void
 }
 
 /**
  * Bandeja de venta, anclada abajo de la pantalla.
  *
- * Es la venta en curso y el cobro, al alcance del pulgar: mango, líneas con su stepper, total
- * grande y COBRAR con el importe adentro. Ningún total se calcula acá: `calcularTotales` ya lo
- * hizo y este panel sólo lo formatea. La cantidad se cambia de a una unidad porque es lo que hace
- * el cajero con el dedo.
+ * Es la venta en curso, al alcance del pulgar: mango, líneas con su stepper, total grande y COBRAR
+ * con el importe adentro. El cobro en sí —medio de pago, billetes, vuelto— vive en la hoja que sube
+ * sobre esta pantalla; la bandeja sólo la abre. Ningún total se calcula acá: `calcularTotales` ya lo
+ * hizo y este panel sólo lo formatea. La cantidad se cambia de a una unidad porque es lo que hace el
+ * cajero con el dedo.
  */
 export function PanelVenta({
   lineas,
   totales,
-  efectivoPesos,
-  esTarjeta,
   onCambiarCantidad,
   onQuitar,
   onVaciar,
-  onCambiarEfectivo,
-  onCambiarTarjeta,
   onCobrar,
 }: PanelVentaProps) {
   const unidades = lineas.reduce((suma, linea) => suma + linea.cantidad, 0)
@@ -124,7 +118,7 @@ export function PanelVenta({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-[var(--space-lg)] bg-card px-[var(--page-margin-desktop)] py-[var(--space-md)]">
+      <div className="flex flex-wrap items-end justify-between gap-[var(--space-lg)] bg-card px-[var(--page-margin-desktop)] py-[var(--space-md)]">
         <div>
           <small className="block text-[0.6875rem] font-bold uppercase leading-3.5 tracking-[0.04em] text-muted-foreground">
             Total
@@ -138,34 +132,6 @@ export function PanelVenta({
           <span className="text-xs text-muted-foreground tabular-nums">
             IVA incluido · {formatearCentavos(totales.ivaCentavos)}
           </span>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-[var(--space-sm)]">
-          <label className="flex flex-col">
-            <span className="text-[0.6875rem] font-bold uppercase leading-3.5 tracking-[0.04em] text-muted-foreground">
-              Efectivo recibido ($)
-            </span>
-            <input
-              type="text"
-              inputMode="decimal"
-              aria-label="Efectivo recibido en pesos"
-              value={efectivoPesos}
-              disabled={esTarjeta}
-              onChange={(evento) => onCambiarEfectivo(evento.target.value)}
-              className="min-h-[var(--size-touch-min)] w-40 rounded-md border border-input bg-card px-[var(--space-sm)] text-base tabular-nums disabled:opacity-50"
-            />
-          </label>
-
-          <label className="flex min-h-[var(--size-touch-min)] items-center gap-[var(--space-sm)] rounded-md border border-border px-[var(--space-sm)]">
-            <input
-              type="checkbox"
-              aria-label="Tarjeta (manual)"
-              checked={esTarjeta}
-              onChange={(evento) => onCambiarTarjeta(evento.target.checked)}
-              className="size-5"
-            />
-            <span className="text-sm font-semibold">Tarjeta (manual)</span>
-          </label>
         </div>
 
         <button
