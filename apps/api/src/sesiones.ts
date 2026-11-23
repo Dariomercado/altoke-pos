@@ -55,6 +55,13 @@ const SQL_REVOCAR = `UPDATE sesiones SET revocada_en = now()
 WHERE token_hash = $1 AND revocada_en IS NULL`
 
 /**
+ * Sin token que conservar se pasa `''`: ningún `token_hash` real es vacío, así que caen todas.
+ * La alternativa (`$2::text IS NULL`) le pide a Postgres que adivine el tipo de un parámetro nulo.
+ */
+const SQL_REVOCAR_DEL_USUARIO = `UPDATE sesiones SET revocada_en = now()
+WHERE usuario_id = $1 AND revocada_en IS NULL AND token_hash <> $2`
+
+/**
  * Inserta la sesión y devuelve su vencimiento. La fecha la calcula Postgres: una sola noción del
  * tiempo del lado del servidor.
  */
@@ -91,6 +98,21 @@ export async function buscarSesionActiva(
 
 export async function revocarSesion(consultable: Consultable, tokenHash: string): Promise<void> {
   await consultable.query(SQL_REVOCAR, [tokenHash])
+}
+
+/**
+ * Revoca **todas** las sesiones vigentes de un usuario, salvo la del token que se pase.
+ *
+ * Un reset de contraseña invalida la credencial: lo que se firmó con la vieja deja de servir en el
+ * acto. El actor conserva la sesión desde la que resetea su propia contraseña, porque echarlo de la
+ * pantalla que está usando no protege nada.
+ */
+export async function revocarSesionesDeUsuario(
+  consultable: Consultable,
+  usuarioId: string,
+  conservarTokenHash?: string,
+): Promise<void> {
+  await consultable.query(SQL_REVOCAR_DEL_USUARIO, [usuarioId, conservarTokenHash ?? ''])
 }
 
 function aIso(valor: unknown): string {

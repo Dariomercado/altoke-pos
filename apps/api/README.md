@@ -76,7 +76,7 @@ Todo error, incluido un 500 y una ruta inexistente, responde con la forma de `00
 | `no_autenticado`     | 401  | sin token, token con forma inválida, vencido, revocado o credenciales incorrectas |
 | `sin_permiso`        | 403  | el usuario no es miembro de ese tenant, o su rol no alcanza   |
 | `tenant_desconocido` | 404  | `X-Tenant` o `:slug` no existe                                |
-| `validacion`         | 400  | input inválido, email/slug ya tomados, tenant sin elegir, JSON malformado |
+| `validacion`         | 400  | input inválido, email/slug/sucursal ya tomados, tenant sin elegir, JSON malformado |
 | `conflicto_de_secuencia` | 409 | lo usa el sync (T5), todavía no hay ruta                     |
 | `demasiados_intentos`| 429  | reservado; M2 no limita intentos                              |
 | `error_interno`      | 500  | falla del servidor: el detalle queda en el log, nunca en la respuesta |
@@ -100,6 +100,11 @@ un health check que miente o que devuelve 500 cuando la base está caída es peo
 | `POST`   | `/tenants/:slug/terminales`            | `owner`/`admin` | 201: `{ id, nombre, tenantId, sucursal }` |
 | `POST`   | `/tenants/:slug/usuarios/:id/password` | `owner`/`admin` | 200: `{ ok: true }` |
 
+- **Reset de contraseña:** `owner`/`admin` y el rol del objetivo **estrictamente menor** que el del
+  actor (`owner` → `admin`/`cajero`/`solo_lectura`; `admin` → `cajero`/`solo_lectura`). Resetear a
+  alguien de tu rol o de uno mayor es `sin_permiso`, no `validacion`. Un reset exitoso revoca las
+  sesiones vigentes del objetivo; la sesión propia sobrevive a un auto-reset.
+
 - **Transporte:** `Authorization: Bearer <token>`. El token son 32 bytes base64url, se muestra
   **una sola vez** y el servidor guarda sólo su SHA-256 en `sesiones`, con vida de 12 h.
 - **Contraseñas:** `scrypt` de `node:crypto` (N=2^14, r=8, p=1, sal de 16 bytes), guardadas como
@@ -121,15 +126,29 @@ El spec fija la forma y los códigos; estas son las elecciones de T3 donde no di
 - **Duplicados:** email o slug ya tomados → `400 validacion` con `detalle.campo` (`email`,
   `tenant.slug`). No se usa 409: el cliente lo resuelve corrigiendo el campo.
 - **Normalización:** email y slug se guardan en minúsculas; un email con mayúsculas entra a la misma
-  cuenta. El slug acepta minúsculas, números y guiones (2–40).
+  cuenta. El slug acepta minúsculas, números y guiones, y el largo es 2–40 de verdad: un slug de un
+  carácter o de 41 es `validacion` con `detalle.campo: "tenant.slug"`.
 - **Login con varios tenants:** la sesión guarda el tenant más antiguo como predeterminado y
   `X-Tenant` elige otro después. `GET /auth/yo` devuelve todas las membresías para que el POS
   muestre el selector.
 - **Terminales:** `0003` §Esquema no tiene tabla `terminales`, así que el endpoint devuelve el id
   (uuid) que la terminal usa como `terminalId` en el sync; todavía no persiste nada más que la
-  sucursal. `sucursal` llega como nombre y se reusa o se crea dentro del tenant.
+  sucursal. `sucursal` llega como nombre y se reusa o se crea dentro del tenant: el nombre es único
+  por tenant (`lower(nombre)`, índice `0004_sucursal_por_nombre.sql`), así que dos pedidos
+  simultáneos que piden la misma sucursal nueva terminan con una sola fila y con el mismo id.
 - **Reset de contraseña:** lo hace `owner`/`admin` sobre un miembro del tenant (no hay email
-  transaccional en M2). No revoca las sesiones abiertas de ese usuario; queda para cuando haya
+  transaccional en M2) y sólo si el rol del objetivo es **estrictamente menor** que el del actor,
+  comparado con el retículo de [`src/roles.ts`](src/roles.ts): `owner` resetea a `admin`, `cajero`
+  y `solo_lectura`; `admin` resetea a `cajero` y `solo_lectura`; nadie resetea a alguien de su
+  mismo rol o de uno mayor, y `cajero`/`solo_lectura` no resetean a nadie (tampoco llegan a la
+  ruta). Resetear a un rol igual o superior es `sin_permiso`, no `validacion`: el pedido está bien
+  formado, lo que falta es permiso. La propia contraseña la puede cambiar cualquier rol que llegue
+  a la ruta.
+- **Sesiones y reset:** un reset exitoso **revoca todas las sesiones vigentes del usuario
+  objetivo** — si se reemplaza una credencial, lo que se firmó con la vieja deja de servir en el
+  acto y el usuario vuelve a entrar con la contraseña nueva. La excepción es la sesión desde la que
+  el actor resetea su **propia** contraseña, que se conserva: no se echa de la pantalla a quien
+  está operando. Esto es comportamiento y está cubierto por tests, no un hueco pendiente de
   auditoría de sesiones.
 - **`membresias` y RLS:** `GET /auth/yo` y la elección de tenant necesitan leer las membresías
   propias antes de saber cuál es el tenant. La migración `0003_membresias_propias.sql` agrega una
@@ -180,7 +199,10 @@ MIGRATIONS_DATABASE_URL=postgres://altoke:altoke@localhost:5435/altoke pnpm test
 Los tests del esquema migran como dueño y los de RLS y auth conectan como `altoke_app`: sin las dos
 variables no hay forma de probar que el aislamiento por tenant se aplica de verdad. Los de auth
 cubren el alta atómica, que el token y la contraseña no queden en claro, token vencido, token
-revocado, `solo_lectura` sin permiso y un token del tenant A pidiendo el tenant B.
+revocado, `solo_lectura` sin permiso, un token del tenant A pidiendo el tenant B, la comparación de
+roles y la revocación de sesiones del reset, y dos carreras reales (dos altas simultáneas con el
+mismo tenant y dos terminales simultáneas con la misma sucursal nueva): nunca un 500 y nunca una
+fila duplicada.
 
 Los tests que no necesitan base usan un doble (`src/dobles.ts`) que devuelve filas guionadas y
 registra cada consulta con su conexión: así se verifica que `BEGIN`, `set_config`, `COMMIT` y

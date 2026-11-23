@@ -14,6 +14,7 @@ import { MENSAJE_USUARIO_AJENO } from './rutas-tenants.ts'
 import { crearServidor } from './servidor.ts'
 import { hashPassword } from './password.ts'
 import { generarToken } from './sesiones.ts'
+import { MENSAJE_SLUG_INVALIDO } from './validacion.ts'
 
 const USUARIO_ID = '11111111-1111-1111-1111-111111111111'
 const TENANT_ID = '22222222-2222-2222-2222-222222222222'
@@ -134,6 +135,41 @@ describe('POST /auth/registro', () => {
     expect(insertUsuario?.valores[0]).toBe('ana@kiosco.com')
     expect(insertTenant?.valores[0]).toBe('kiosco-nuevo')
     await app.close()
+  })
+
+  it('el slug exige entre 2 y 40 caracteres, y la forma de siempre', async () => {
+    const rechazados = ['a', 'a'.repeat(41), '-guion', 'guion-', 'con espacio', 'con_guion']
+    const aceptados = ['ab', 'a'.repeat(40), 'kiosco-2', '2kioscos']
+
+    for (const slug of rechazados) {
+      const { app, doble } = servidor(reglasDeRegistro())
+      const respuesta = await app.inject({
+        method: 'POST',
+        url: '/auth/registro',
+        payload: { ...REGISTRO, tenant: { nombre: 'Kiosco', slug } },
+      })
+
+      expect(respuesta.statusCode, slug).toBe(400)
+      expect(respuesta.json()).toStrictEqual({
+        error: { code: 'validacion', mensaje: MENSAJE_SLUG_INVALIDO, detalle: { campo: 'tenant.slug' } },
+      })
+      expect(doble.consultas, slug).toStrictEqual([])
+      await app.close()
+    }
+
+    for (const slug of aceptados) {
+      const { app, doble } = servidor(reglasDeRegistro())
+      const respuesta = await app.inject({
+        method: 'POST',
+        url: '/auth/registro',
+        payload: { ...REGISTRO, tenant: { nombre: 'Kiosco', slug } },
+      })
+
+      expect(respuesta.statusCode, slug).toBe(201)
+      const insertTenant = doble.consultas.find((c) => c.sql.startsWith('INSERT INTO tenants'))
+      expect(insertTenant?.valores[0], slug).toBe(slug)
+      await app.close()
+    }
   })
 
   it('un email tomado es validacion nombrando el campo, y no crea nada', async () => {

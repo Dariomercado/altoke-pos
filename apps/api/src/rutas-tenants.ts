@@ -19,6 +19,8 @@ import type { FuenteDeConexiones } from './db.ts'
 import { autenticacionDe, autenticar, requiereRol } from './auth.ts'
 import { sinPermiso, tenantDesconocido, validacion } from './errores.ts'
 import { hashPassword } from './password.ts'
+import { rolSupera } from './roles.ts'
+import { revocarSesionesDeUsuario } from './sesiones.ts'
 import { asegurarSucursal, buscarMembresia, buscarTenant } from './tenants.ts'
 import type { Tenant } from './tenants.ts'
 import { enTransaccionDeTenant } from './transaccion.ts'
@@ -27,6 +29,8 @@ import { leerCuerpo, leerNombre, leerPassword, leerUuid } from './validacion.ts'
 
 export const MENSAJE_USUARIO_AJENO = 'Ese usuario no pertenece a este tenant.'
 export const MENSAJE_USUARIO_INEXISTENTE = 'Ese usuario no existe.'
+export const MENSAJE_ROL_NO_ALCANZA =
+  'No podés resetear la contraseña de alguien con tu rol o uno mayor.'
 
 type ParametrosDeRuta = { readonly slug?: string; readonly id?: string }
 
@@ -102,8 +106,26 @@ export function registrarRutasTenants(app: FastifyInstance, fuente: FuenteDeCone
         const membresia = await buscarMembresia(conexion, usuarioId, tenant.id)
         if (membresia === undefined) throw validacion(MENSAJE_USUARIO_AJENO, 'usuario')
 
+        // El propio password lo cambia cualquiera; el de otro, sólo quien tiene un rol
+        // estrictamente mayor. Un `admin` no toca a otro `admin` ni al `owner`: si pudiera, se
+        // quedaría con el rol de arriba. `sin_permiso` y no `validacion`: el pedido está bien
+        // formado, lo que falta es permiso.
+        const esPropia = usuarioId === autenticacion.usuarioId
+        if (!esPropia && !rolSupera(autenticacion.rol, membresia)) {
+          throw sinPermiso(MENSAJE_ROL_NO_ALCANZA)
+        }
+
         const actualizado = await actualizarPassword(conexion, usuarioId, passwordHash)
         if (!actualizado) throw validacion(MENSAJE_USUARIO_INEXISTENTE, 'usuario')
+
+        // La credencial vieja dejó de ser confiable: lo que se firmó con ella deja de servir. La
+        // sesión propia se conserva cuando el actor resetea su propia contraseña, para no echarlo
+        // de la pantalla que está usando.
+        await revocarSesionesDeUsuario(
+          conexion,
+          usuarioId,
+          esPropia ? autenticacion.tokenHash : undefined,
+        )
       })
 
       return { ok: true }

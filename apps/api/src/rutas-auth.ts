@@ -16,6 +16,7 @@
 
 import type { FastifyInstance } from 'fastify'
 import type { FuenteDeConexiones } from './db.ts'
+import { restriccionUnica } from './db.ts'
 import { autenticacionDe, autenticar } from './auth.ts'
 import { noAutenticado, sinPermiso, validacion } from './errores.ts'
 import type { ErrorApi } from './errores.ts'
@@ -30,6 +31,7 @@ import { leerCuerpo, leerEmail, leerNombre, leerObjeto, leerPassword, leerSlug }
 export const MENSAJE_CREDENCIALES = 'Email o contraseña incorrectos.'
 export const MENSAJE_EMAIL_OCUPADO = 'Ya existe una cuenta con ese email.'
 export const MENSAJE_SLUG_OCUPADO = 'Ya existe un tenant con ese slug.'
+export const MENSAJE_SUCURSAL_DUPLICADA = 'Esa sucursal ya existe en el tenant.'
 
 /** La sucursal que nace con el tenant. `sucursal` en el resto de la API la reusa por nombre. */
 export const SUCURSAL_INICIAL = 'Principal'
@@ -65,20 +67,26 @@ type RespuestaSesion = {
 
 /**
  * Una violación de unicidad que igual pasó la verificación previa (dos altas simultáneas con el
- * mismo email o slug) se traduce al mismo `validacion`. Nunca un 500 por una carrera.
+ * mismo email, slug o sucursal) se traduce al mismo `validacion`. Nunca un 500 por una carrera.
+ *
+ * La sucursal está en la lista porque el índice `(tenant_id, lower(nombre))` tiene un nombre de
+ * restricción que no dice «email» ni «slug»: sin esta rama, un `23505` de `sucursales` sería un
+ * 500 por un nombre que el cliente puede cambiar.
  */
-function campoDeViolacionUnica(error: unknown): 'email' | 'tenant.slug' | undefined {
-  if (!(error instanceof Error)) return undefined
-  if ((error as { code?: unknown }).code !== '23505') return undefined
+type CampoDeUnicidad = 'email' | 'tenant.slug' | 'sucursal'
 
-  const restriccion = String((error as { constraint?: unknown }).constraint ?? '')
+function campoDeViolacionUnica(error: unknown): CampoDeUnicidad | undefined {
+  const restriccion = restriccionUnica(error)
+  if (restriccion === undefined) return undefined
   if (restriccion.includes('email')) return 'email'
   if (restriccion.includes('slug')) return 'tenant.slug'
+  if (restriccion.includes('sucursal')) return 'sucursal'
   return undefined
 }
 
-function errorDeUnicidad(campo: 'email' | 'tenant.slug'): ErrorApi {
+function errorDeUnicidad(campo: CampoDeUnicidad): ErrorApi {
   if (campo === 'email') return validacion(MENSAJE_EMAIL_OCUPADO, 'email')
+  if (campo === 'sucursal') return validacion(MENSAJE_SUCURSAL_DUPLICADA, 'sucursal')
   return validacion(MENSAJE_SLUG_OCUPADO, 'tenant.slug')
 }
 

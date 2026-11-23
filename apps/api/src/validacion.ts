@@ -63,12 +63,23 @@ export function leerPassword(valor: unknown): string {
 export const MENSAJE_SLUG_INVALIDO =
   'El slug tiene que tener entre 2 y 40 caracteres: minúsculas, números y guiones.'
 
-const PATRON_SLUG = /^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$/
+export const LARGO_MINIMO_SLUG = 2
+export const LARGO_MAXIMO_SLUG = 40
+
+/** Forma: minúsculas, números y guiones interiores. Sin guion al principio ni al final. */
+const PATRON_SLUG = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/
 
 export function leerSlug(valor: unknown): string {
   if (typeof valor !== 'string') throw validacion(MENSAJE_SLUG_INVALIDO, 'tenant.slug')
   const slug = valor.trim().toLowerCase()
-  if (!PATRON_SLUG.test(slug)) throw validacion(MENSAJE_SLUG_INVALIDO, 'tenant.slug')
+  // El largo se comprueba aparte del patrón: el mensaje promete 2–40 y tiene que cumplirlo.
+  if (
+    slug.length < LARGO_MINIMO_SLUG ||
+    slug.length > LARGO_MAXIMO_SLUG ||
+    !PATRON_SLUG.test(slug)
+  ) {
+    throw validacion(MENSAJE_SLUG_INVALIDO, 'tenant.slug')
+  }
   return slug
 }
 

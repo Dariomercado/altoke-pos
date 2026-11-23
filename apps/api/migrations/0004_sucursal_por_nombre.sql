@@ -1,0 +1,13 @@
+-- 0004_sucursal_por_nombre.sql — una sucursal por nombre en cada tenant.
+--
+-- `asegurarSucursal` reusa la sucursal por nombre (`lower(nombre)`), así que el nombre es la
+-- identidad de la sucursal dentro del tenant. Sin este índice, dos pedidos simultáneos que crean
+-- la misma sucursal nueva la insertan dos veces y el tenant queda con dos sucursales que el POS
+-- muestra como distintas sin serlo.
+--
+-- Con el índice, uno gana y el otro relee la fila ganadora (`23505` → relectura en
+-- `asegurarSucursal`), y el nombre duplicado es un error que se puede nombrar en vez de un 500.
+--
+-- Es un índice de expresión y no un `UNIQUE (tenant_id, nombre)` porque el texto de Postgres no
+-- compara sin mayúsculas: `Principal` y `principal` son la misma sucursal.
+CREATE UNIQUE INDEX sucursales_tenant_nombre_idx ON sucursales (tenant_id, lower(nombre));

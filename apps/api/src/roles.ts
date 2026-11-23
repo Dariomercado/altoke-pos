@@ -26,3 +26,11 @@ export function esRol(valor: unknown): valor is Rol {
 export function rolAlcanza(rol: Rol, minimo: Rol): boolean {
   return RANGO_ROL[rol] >= RANGO_ROL[minimo]
 }
+
+/**
+ * Estrictamente por encima: `admin` supera a `cajero`, pero no a otro `admin` ni a un `owner`.
+ * Es la comparación del reset de contraseña: nadie toca la credencial de un rol igual o mayor.
+ */
+export function rolSupera(rol: Rol, otro: Rol): boolean {
+  return RANGO_ROL[rol] > RANGO_ROL[otro]
+}

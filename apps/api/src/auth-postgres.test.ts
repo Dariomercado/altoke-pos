@@ -6,7 +6,9 @@
  *   - la base guarda el hash del token y el hash de la contraseña, nunca el original,
  *   - un token vencido o revocado no entra,
  *   - RLS + membresía: `solo_lectura` recibe `sin_permiso` en una ruta de administración y un
- *     token del tenant A no alcanza al tenant B.
+ *     token del tenant A no alcanza al tenant B,
+ *   - un reset de contraseña exige un rol estrictamente menor y revoca las sesiones del objetivo,
+ *   - dos altas simultáneas y dos terminales simultáneas no dan 500 ni duplican datos.
  *
  * Sin `DATABASE_URL` la suite se **omite con un aviso explícito**: omitir no es pasar.
  */
@@ -35,7 +37,7 @@ const sinBase = urlApp === undefined || urlDuenio === undefined
 
 if (sinBase) {
   process.stderr.write(
-    '[apps/api] DATABASE_URL ausente: se OMITEN los tests de auth contra Postgres (11 tests). ' +
+    '[apps/api] DATABASE_URL ausente: se OMITEN los tests de auth contra Postgres (19 tests). ' +
       'Para correrlos: pnpm db:up y después ' +
       'DATABASE_URL=postgres://altoke_app:altoke_app@localhost:5435/altoke ' +
       'MIGRATIONS_DATABASE_URL=postgres://altoke:altoke@localhost:5435/altoke pnpm test.\n',
@@ -112,6 +114,16 @@ describe.skipIf(sinBase)('auth contra Postgres', () => {
       [usuarioId, tenantId, rol],
     )
     return usuarioId
+  }
+
+  async function iniciarSesion(nombre: string, password = PASSWORD): Promise<string> {
+    const login = await app.inject({
+      method: 'POST',
+      url: '/auth/sesion',
+      payload: { email: email(nombre), password },
+    })
+    expect(login.statusCode, login.body).toBe(200)
+    return login.json().token as string
   }
 
   it('registro crea usuario, tenant, membresía owner, sucursal y sesión; yo los devuelve', async () => {
@@ -407,5 +419,208 @@ describe.skipIf(sinBase)('auth contra Postgres', () => {
     })
     expect(ajeno.statusCode).toBe(400)
     expect(ajeno.json().error.detalle).toStrictEqual({ campo: 'usuario' })
+  })
+
+  it('un admin no puede resetear al owner', async () => {
+    const cuenta = await registrar('rol-owner')
+    await crearMiembro(cuenta.tenant.id, 'rol-admin', 'admin')
+    const tokenAdmin = await iniciarSesion('rol-admin')
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: `/tenants/${cuenta.tenant.slug}/usuarios/${cuenta.usuario.id}/password`,
+      headers: bearer(tokenAdmin),
+      payload: { password: 'tomada-por-el-admin' },
+    })
+
+    expect(reset.statusCode, reset.body).toBe(403)
+    expect(reset.json()).toStrictEqual({
+      error: {
+        code: 'sin_permiso',
+        mensaje: 'No podés resetear la contraseña de alguien con tu rol o uno mayor.',
+      },
+    })
+    // La contraseña del owner no cambió: el reset no pasó.
+    await iniciarSesion('rol-owner')
+  })
+
+  it('un admin no puede resetear a otro admin', async () => {
+    const cuenta = await registrar('rol-admin-admin')
+    await crearMiembro(cuenta.tenant.id, 'rol-admin-a', 'admin')
+    const otroAdmin = await crearMiembro(cuenta.tenant.id, 'rol-admin-b', 'admin', 'clave-del-otro')
+    const token = await iniciarSesion('rol-admin-a')
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: `/tenants/${cuenta.tenant.slug}/usuarios/${otroAdmin}/password`,
+      headers: bearer(token),
+      payload: { password: 'tomada-por-el-admin' },
+    })
+
+    expect(reset.statusCode, reset.body).toBe(403)
+    expect(reset.json()).toStrictEqual({
+      error: {
+        code: 'sin_permiso',
+        mensaje: 'No podés resetear la contraseña de alguien con tu rol o uno mayor.',
+      },
+    })
+    await iniciarSesion('rol-admin-b', 'clave-del-otro')
+  })
+
+  it('un admin sí puede resetear a un cajero', async () => {
+    const cuenta = await registrar('rol-admin-cajero')
+    await crearMiembro(cuenta.tenant.id, 'rol-admin-del-tenant', 'admin')
+    const cajeroId = await crearMiembro(cuenta.tenant.id, 'rol-cajero', 'cajero', 'clave-vieja')
+    const token = await iniciarSesion('rol-admin-del-tenant')
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: `/tenants/${cuenta.tenant.slug}/usuarios/${cajeroId}/password`,
+      headers: bearer(token),
+      payload: { password: 'nueva-contraseña' },
+    })
+
+    expect(reset.statusCode, reset.body).toBe(200)
+    expect(reset.json()).toStrictEqual({ ok: true })
+    await iniciarSesion('rol-cajero', 'nueva-contraseña')
+
+    const conVieja = await app.inject({
+      method: 'POST',
+      url: '/auth/sesion',
+      payload: { email: email('rol-cajero'), password: 'clave-vieja' },
+    })
+    expect(conVieja.statusCode).toBe(401)
+  })
+
+  it('un owner sí puede resetear a un admin', async () => {
+    const cuenta = await registrar('rol-owner-admin')
+    const adminId = await crearMiembro(cuenta.tenant.id, 'rol-admin-de-owner', 'admin', 'clave-vieja')
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: `/tenants/${cuenta.tenant.slug}/usuarios/${adminId}/password`,
+      headers: bearer(cuenta.token),
+      payload: { password: 'nueva-contraseña' },
+    })
+
+    expect(reset.statusCode, reset.body).toBe(200)
+    expect(reset.json()).toStrictEqual({ ok: true })
+    await iniciarSesion('rol-admin-de-owner', 'nueva-contraseña')
+  })
+
+  it('resetear la contraseña de otro usuario revoca sus sesiones abiertas', async () => {
+    const cuenta = await registrar('revoca')
+    const cajeroId = await crearMiembro(cuenta.tenant.id, 'revoca-cajero', 'cajero')
+    const tokenViejo = await iniciarSesion('revoca-cajero')
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: `/tenants/${cuenta.tenant.slug}/usuarios/${cajeroId}/password`,
+      headers: bearer(cuenta.token),
+      payload: { password: 'nueva-contraseña' },
+    })
+    expect(reset.statusCode, reset.body).toBe(200)
+
+    const conTokenViejo = await app.inject({
+      method: 'GET',
+      url: '/auth/yo',
+      headers: bearer(tokenViejo),
+    })
+    expect(conTokenViejo.statusCode, conTokenViejo.body).toBe(401)
+    expect(conTokenViejo.json()).toStrictEqual({
+      error: { code: 'no_autenticado', mensaje: 'Necesitás iniciar sesión.' },
+    })
+
+    // Revocar sesiones no es bloquear la cuenta: con la contraseña nueva se entra.
+    await iniciarSesion('revoca-cajero', 'nueva-contraseña')
+  })
+
+  it('la sesión desde la que el actor resetea su propia contraseña sigue viva', async () => {
+    const cuenta = await registrar('auto-reset')
+
+    const reset = await app.inject({
+      method: 'POST',
+      url: `/tenants/${cuenta.tenant.slug}/usuarios/${cuenta.usuario.id}/password`,
+      headers: bearer(cuenta.token),
+      payload: { password: 'nueva-contraseña' },
+    })
+    expect(reset.statusCode, reset.body).toBe(200)
+
+    const yo = await app.inject({ method: 'GET', url: '/auth/yo', headers: bearer(cuenta.token) })
+    expect(yo.statusCode, yo.body).toBe(200)
+    expect(yo.json().usuario.id).toBe(cuenta.usuario.id)
+
+    const conVieja = await app.inject({
+      method: 'POST',
+      url: '/auth/sesion',
+      payload: { email: email('auto-reset'), password: PASSWORD },
+    })
+    expect(conVieja.statusCode).toBe(401)
+    await iniciarSesion('auto-reset', 'nueva-contraseña')
+  })
+
+  it('dos altas simultáneas con el mismo tenant no dan 500 ni dejan dos sucursales', async () => {
+    const nombreSlug = slug('carrera')
+    const payload = (nombre: string) => ({
+      email: email(`carrera-${nombre}`),
+      password: PASSWORD,
+      nombre: `Carrera ${nombre}`,
+      tenant: { nombre: 'Kiosco carrera', slug: nombreSlug },
+    })
+
+    const [uno, dos] = await Promise.all([
+      app.inject({ method: 'POST', url: '/auth/registro', payload: payload('uno') }),
+      app.inject({ method: 'POST', url: '/auth/registro', payload: payload('dos') }),
+    ])
+
+    // Uno crea el tenant; el otro recibe un error que puede corregir. Nunca un 500.
+    expect([uno.statusCode, dos.statusCode].sort(), `${uno.body} / ${dos.body}`).toStrictEqual([
+      201, 400,
+    ])
+    const perdedor = [uno, dos].find((respuesta) => respuesta.statusCode === 400)
+    expect(perdedor?.json()).toStrictEqual({
+      error: {
+        code: 'validacion',
+        mensaje: 'Ya existe un tenant con ese slug.',
+        detalle: { campo: 'tenant.slug' },
+      },
+    })
+
+    const tenants = await duenio.query(`SELECT id FROM tenants WHERE slug = $1`, [nombreSlug])
+    expect(tenants.rows).toHaveLength(1)
+
+    const sucursales = await duenio.query(
+      `SELECT lower(nombre) AS nombre, count(*)::int AS total
+       FROM sucursales WHERE tenant_id = $1 GROUP BY lower(nombre)`,
+      [tenants.rows[0]?.['id']],
+    )
+    expect(sucursales.rows).toStrictEqual([{ nombre: 'principal', total: 1 }])
+  })
+
+  it('dos terminales simultáneas con la misma sucursal nueva reusan una sola sucursal', async () => {
+    const cuenta = await registrar('carrera-sucursal')
+
+    const terminales = await Promise.all(
+      ['Caja 1', 'Caja 2'].map((nombre) =>
+        app.inject({
+          method: 'POST',
+          url: `/tenants/${cuenta.tenant.slug}/terminales`,
+          headers: bearer(cuenta.token),
+          payload: { nombre, sucursal: 'Depósito' },
+        }),
+      ),
+    )
+
+    for (const terminal of terminales) {
+      expect(terminal.statusCode, terminal.body).toBe(201)
+    }
+    const ids = terminales.map((terminal) => terminal.json().sucursal.id as string)
+    expect(new Set(ids).size, terminales.map((terminal) => terminal.body).join(' / ')).toBe(1)
+
+    const filas = await duenio.query(
+      `SELECT id FROM sucursales WHERE tenant_id = $1 AND lower(nombre) = lower($2)`,
+      [cuenta.tenant.id, 'Depósito'],
+    )
+    expect(filas.rows).toHaveLength(1)
   })
 })

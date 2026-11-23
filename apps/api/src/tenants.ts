@@ -8,7 +8,7 @@
  */
 
 import type { Consultable } from './db.ts'
-import { primeraFila } from './db.ts'
+import { primeraFila, restriccionUnica } from './db.ts'
 import { esRol } from './roles.ts'
 import type { Rol } from './roles.ts'
 
@@ -118,26 +118,51 @@ export type Sucursal = {
   readonly nombre: string
 }
 
+async function buscarSucursalPorNombre(
+  consultable: Consultable,
+  tenantId: string,
+  nombre: string,
+): Promise<Sucursal | undefined> {
+  const fila = (await consultable.query(SQL_SUCURSAL_POR_NOMBRE, [tenantId, nombre])).rows[0]
+  if (fila === undefined) return undefined
+  return { id: String(fila['id']), nombre: String(fila['nombre']) }
+}
+
 /**
  * La sucursal con ese nombre en el tenant, o la crea. `sucursal` llega como nombre en
  * `POST /tenants/:slug/terminales` y el alta del tenant ya crea "Principal": reusar la misma
  * función evita dos sucursales "Principal" con distinta capitalización.
+ *
+ * Dos pedidos simultáneos pueden pasar el `SELECT` y chocar en el `INSERT`: el índice único
+ * `(tenant_id, lower(nombre))` deja ganar a uno. El perdedor **relee la fila ganadora** en vez de
+ * propagar un `23505` que el cliente no puede arreglar (para él no hay ningún dato duplicado, sólo
+ * una sucursal que ya existía). El `SAVEPOINT` es lo que permite releer: un `23505` sin savepoint
+ * deja la transacción entera abortada.
  */
 export async function asegurarSucursal(
   conexion: Consultable,
   tenantId: string,
   nombre: string,
 ): Promise<Sucursal> {
-  const existente = (await conexion.query(SQL_SUCURSAL_POR_NOMBRE, [tenantId, nombre])).rows[0]
-  if (existente !== undefined) {
-    return { id: String(existente['id']), nombre: String(existente['nombre']) }
-  }
+  const existente = await buscarSucursalPorNombre(conexion, tenantId, nombre)
+  if (existente !== undefined) return existente
 
-  const fila = primeraFila(
-    await conexion.query(
-      `INSERT INTO sucursales (tenant_id, nombre) VALUES ($1, $2) RETURNING id, nombre`,
-      [tenantId, nombre],
-    ),
-  )
-  return { id: String(fila['id']), nombre: String(fila['nombre']) }
+  await conexion.query('SAVEPOINT sucursal')
+  try {
+    const fila = primeraFila(
+      await conexion.query(
+        `INSERT INTO sucursales (tenant_id, nombre) VALUES ($1, $2) RETURNING id, nombre`,
+        [tenantId, nombre],
+      ),
+    )
+    return { id: String(fila['id']), nombre: String(fila['nombre']) }
+  } catch (error) {
+    if (restriccionUnica(error) === undefined) throw error
+
+    await conexion.query('ROLLBACK TO SAVEPOINT sucursal')
+    const ganadora = await buscarSucursalPorNombre(conexion, tenantId, nombre)
+    // Si la violación no era por el nombre, no hay fila que reusar: el error es real.
+    if (ganadora === undefined) throw error
+    return ganadora
+  }
 }

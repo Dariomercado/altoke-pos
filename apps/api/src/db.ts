@@ -34,3 +34,14 @@ export function primeraFila(resultado: ResultadoConsulta): Record<string, unknow
   if (fila === undefined) throw new Error('la consulta no devolvió la fila esperada')
   return fila
 }
+
+/**
+ * El nombre de la restricción de una violación de unicidad (`23505`), o `undefined` si el error no
+ * lo es. El nombre es lo único que dice **qué** chocó: un `23505` sin traducir es un 500 por input
+ * que el cliente puede corregir.
+ */
+export function restriccionUnica(error: unknown): string | undefined {
+  if (!(error instanceof Error)) return undefined
+  if ((error as { code?: unknown }).code !== '23505') return undefined
+  return String((error as { constraint?: unknown }).constraint ?? '')
+}
