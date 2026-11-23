@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@altoke/contracts": "workspace:*",
     "@altoke/domain": "workspace:*",
     "@altoke/store": "workspace:*",
     "@altoke/ui": "workspace:*",

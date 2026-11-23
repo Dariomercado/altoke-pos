@@ -42,6 +42,7 @@ credenciales locales no se commitean.
 | `MIGRATIONS_DATABASE_URL`| no          | `DATABASE_URL`  | Cadena de conexión del **dueño del esquema**, que corre `pnpm db:migrate`. Opcional: si falta, se usa `DATABASE_URL`.           |
 | `PORT`                   | no          | `3001`          | Puerto HTTP. Entero entre 1 y 65535.                 |
 | `NODE_ENV`               | no          | `development`   | Entorno declarado.                                    |
+| `CORS_ORIGINS`           | no          | vacía (ninguno) | Orígenes de tenant permitidos, separados por coma (`https://kiosco.altoke.app`). `*` se **rechaza**; fuera de localhost, tiene que ser `https:`. Ver [CORS explícito](#cors-explícito). |
 
 La validación vive en [`src/config.ts`](src/config.ts) y falla **antes** de abrir el puerto.
 
@@ -262,6 +263,26 @@ no las acepta, es un bug del servidor y responde 500 en vez de un cuerpo raro.
 Toda consulta autenticada corre en una conexión dedicada con `BEGIN` + `SELECT set_config('app.tenant_id', $1, true)`
 (la forma parametrizable de `SET LOCAL`) + `COMMIT/ROLLBACK` + `release()`. El setting muere con la
 transacción: una conexión devuelta al pool nunca arrastra el tenant de un pedido anterior.
+
+### CORS explícito
+
+`0003` §Infraestructura: el POS vive en `slug.altoke.app` y la API en `api.altoke.app`, así que
+CORS es explícito — **sólo los orígenes de tenant declarados, con credenciales**.
+
+- `CORS_ORIGINS` es una lista separada por coma de orígenes completos
+  (`https://kiosco.altoke.app,https://otro.altoke.app`). Sin la variable no hay ningún origen
+  permitido: no hay "permitir todo" por omisión.
+- **`*` se rechaza al leer la configuración**, no se ignora: con credenciales el navegador lo
+  considera inválido, y si se colara dejaría que cualquier página use la sesión de un cajero. Un
+  origen con path, query o credenciales también se rechaza; fuera de `localhost`, el esquema tiene
+  que ser `https:`.
+- Un origen **permitido** recibe `Access-Control-Allow-Origin: <ese origen>` (nunca `*`),
+  `Access-Control-Allow-Credentials: true` y `Vary: Origin`.
+- Un origen **desconocido** recibe `403 sin_permiso` con la forma única de error: se rechaza, no se
+  refleja. Un pedido sin `Origin` (curl, server-to-server) no es un pedido de navegador y CORS no
+  aplica.
+- El **preflight** (`OPTIONS`) se contesta con 204 y `GET, POST, DELETE, OPTIONS`, permitiendo
+  `Authorization`, `Content-Type` y `X-Tenant`.
 
 ## Migraciones
 

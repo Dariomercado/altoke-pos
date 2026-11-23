@@ -17,7 +17,17 @@ export type Config = {
   readonly migracionesDatabaseUrl: string
   readonly port: number
   readonly nodeEnv: string
+  /**
+   * Orígenes de tenant declarados para CORS (`0003` §Infraestructura). Lista vacía es "ninguno":
+   * no hay comodín, ni por defecto ni por omisión.
+   */
+  readonly origenesPermitidos: readonly string[]
 }
+
+export const VARIABLE_ORIGENES = 'CORS_ORIGINS'
+export const AYUDA_ORIGENES =
+  `${VARIABLE_ORIGENES}=https://kiosco.altoke.app,https://otro.altoke.app ` +
+  '(orígenes completos, separados por coma; sin comodines)'
 
 const AYUDA_DATABASE_URL =
   'DATABASE_URL=postgres://altoke_app:altoke_app@localhost:5435/altoke (el rol sin dueño con el ' +
@@ -39,7 +49,90 @@ export function leerConfig(entorno: Entorno): Config {
     migracionesDatabaseUrl: texto(entorno.MIGRATIONS_DATABASE_URL) ?? databaseUrl,
     port: leerPuerto(entorno.PORT),
     nodeEnv: texto(entorno.NODE_ENV) ?? ENTORNO_POR_DEFECTO,
+    origenesPermitidos: leerOrigenesPermitidos(entorno),
   }
+}
+
+/**
+ * Los orígenes de tenant declarados (`0003` §Infraestructura).
+ *
+ * CORS es explícito: sólo estos orígenes, con credenciales. **`*` se rechaza**, no se ignora: un
+ * comodín con `Access-Control-Allow-Credentials` es inválido en el navegador y, si se colara, haría
+ * que cualquier página pueda hablarle a la API con la sesión de un cajero. Un origen con path,
+ * query o credenciales también se rechaza: `new URL` lo normalizaría a un origen que no es el que
+ * el humano declaró.
+ *
+ * Lista vacía es legítima: ningún origen de navegador puede llamar a la API (curl y server-to-server
+ * no mandan `Origin` y no pasan por CORS).
+ */
+export function leerOrigenesPermitidos(entorno: Entorno): readonly string[] {
+  const crudo = texto(entorno.CORS_ORIGINS)
+  if (crudo === undefined) return []
+
+  const permitidos: string[] = []
+  for (const parte of crudo.split(',')) {
+    const origen = parte.trim()
+    if (origen === '') continue
+
+    const normalizado = normalizarOrigen(origen)
+    if (!permitidos.includes(normalizado)) permitidos.push(normalizado)
+  }
+
+  return permitidos
+}
+
+function normalizarOrigen(origen: string): string {
+  if (origen === '*') {
+    throw new Error(
+      `${VARIABLE_ORIGENES} no admite "*": CORS es explícito y con credenciales. ` +
+        `Declará cada origen de tenant, por ejemplo ${AYUDA_ORIGENES}.`,
+    )
+  }
+
+  let url: URL
+  try {
+    url = new URL(origen)
+  } catch {
+    throw new Error(
+      `Origen inválido en ${VARIABLE_ORIGENES}: "${origen}". Tiene que ser un origen absoluto, ` +
+        `por ejemplo ${AYUDA_ORIGENES}.`,
+    )
+  }
+
+  const sinBarraFinal = origen.replace(/\/+$/, '')
+  if (
+    url.origin !== sinBarraFinal ||
+    url.pathname !== '/' ||
+    url.search !== '' ||
+    url.hash !== '' ||
+    url.username !== '' ||
+    url.password !== ''
+  ) {
+    throw new Error(
+      `Origen inválido en ${VARIABLE_ORIGENES}: "${origen}". Sólo el origen (esquema y host), ` +
+        `sin path, query ni credenciales: ${AYUDA_ORIGENES}.`,
+    )
+  }
+
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new Error(
+      `Origen inválido en ${VARIABLE_ORIGENES}: "${origen}". El esquema tiene que ser https: ` +
+        '(o http: en localhost).',
+    )
+  }
+
+  if (url.protocol !== 'https:' && !esLocal(url.hostname)) {
+    throw new Error(
+      `Origen inválido en ${VARIABLE_ORIGENES}: "${origen}". Fuera de localhost tiene que ser ` +
+        'https: el POS vive en otro origen y el token de sesión viaja en cada pedido.',
+    )
+  }
+
+  return url.origin
+}
+
+function esLocal(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '[::1]'
 }
 
 function leerPuerto(valor: string | undefined): number {
