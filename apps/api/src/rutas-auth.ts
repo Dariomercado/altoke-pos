@@ -18,8 +18,14 @@ import type { FastifyInstance } from 'fastify'
 import type { FuenteDeConexiones } from './db.ts'
 import { restriccionUnica } from './db.ts'
 import { autenticacionDe, autenticar } from './auth.ts'
-import { noAutenticado, sinPermiso, validacion } from './errores.ts'
+import { noAutenticado, demasiadosIntentos, sinPermiso, validacion } from './errores.ts'
 import type { ErrorApi } from './errores.ts'
+import {
+  MAXIMO_INTENTOS_POR_DEFECTO,
+  VENTANA_DE_INTENTOS_POR_DEFECTO,
+  crearLimiteDeIntentos,
+} from './limite-de-intentos.ts'
+import type { LimiteDeIntentos } from './limite-de-intentos.ts'
 import { hashPassword, verificarPassword, verificarPasswordSenuelo } from './password.ts'
 import { generarToken, hashToken, insertarSesion, revocarSesion } from './sesiones.ts'
 import { agregarMembresia, asegurarSucursal, crearTenant, listarMembresias } from './tenants.ts'
@@ -32,6 +38,16 @@ export const MENSAJE_CREDENCIALES = 'Email o contraseña incorrectos.'
 export const MENSAJE_EMAIL_OCUPADO = 'Ya existe una cuenta con ese email.'
 export const MENSAJE_SLUG_OCUPADO = 'Ya existe un tenant con ese slug.'
 export const MENSAJE_SUCURSAL_DUPLICADA = 'Esa sucursal ya existe en el tenant.'
+
+/** Los intentos se cuentan por email **y** cliente: una IP sola castigaría a todo un local. */
+function claveDeIntento(email: string, cliente: string): string {
+  return `${email}\u0000${cliente}`
+}
+
+function mensajeDeEspera(segundos: number): string {
+  const minutos = Math.ceil(segundos / 60)
+  return `Demasiados intentos. Probá de nuevo en ${minutos} ${minutos === 1 ? 'minuto' : 'minutos'}.`
+}
 
 /** La sucursal que nace con el tenant. `sucursal` en el resto de la API la reusa por nombre. */
 export const SUCURSAL_INICIAL = 'Principal'
@@ -146,7 +162,22 @@ async function crearCuenta(
   }
 }
 
-export function registrarRutasAuth(app: FastifyInstance, fuente: FuenteDeConexiones): void {
+export type OpcionesRutasAuth = {
+  /** Inyectable: los tests necesitan un reloj, y una app no tiene que compartir cuentas con otra. */
+  readonly limite?: LimiteDeIntentos | undefined
+}
+
+export function registrarRutasAuth(
+  app: FastifyInstance,
+  fuente: FuenteDeConexiones,
+  opciones: OpcionesRutasAuth = {},
+): void {
+  const limite =
+    opciones.limite ??
+    crearLimiteDeIntentos({
+      maximo: MAXIMO_INTENTOS_POR_DEFECTO,
+      ventanaMs: VENTANA_DE_INTENTOS_POR_DEFECTO,
+    })
   app.post('/auth/registro', async (request, reply) => {
     const datos = leerRegistro(request.body)
     const passwordHash = await hashPassword(datos.password)
@@ -168,6 +199,15 @@ export function registrarRutasAuth(app: FastifyInstance, fuente: FuenteDeConexio
     const datos = leerCuerpo(request.body)
     const email = leerEmail(datos['email'])
     const password = leerPassword(datos['password'])
+
+    // Antes de tocar la base: un ataque de contraseñas no tiene por qué costar un `scrypt` ni una
+    // consulta por intento. El que acierta limpia su cuenta y no arrastra nada.
+    const clave = claveDeIntento(email, request.ip)
+    const intento = limite.intentar(clave)
+    if (!intento.permitido) {
+      throw demasiadosIntentos(mensajeDeEspera(intento.reintentarEnSegundos))
+    }
+
     const token = generarToken()
     const tokenHash = hashToken(token)
 
@@ -197,6 +237,8 @@ export function registrarRutasAuth(app: FastifyInstance, fuente: FuenteDeConexio
       })
       return { expiraEn, tenant: elegida }
     })
+
+    limite.registrarExito(clave)
 
     return {
       token,

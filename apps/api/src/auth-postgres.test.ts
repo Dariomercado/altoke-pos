@@ -17,6 +17,7 @@ import { randomUUID } from 'node:crypto'
 import type { FastifyInstance } from 'fastify'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { crearPool } from './db.ts'
+import { MAXIMO_INTENTOS_POR_DEFECTO } from './limite-de-intentos.ts'
 import type { FuenteDeConexiones } from './db.ts'
 import { aplicarMigraciones, leerMigraciones } from './migraciones.ts'
 import { hashPassword } from './password.ts'
@@ -680,6 +681,33 @@ describe.skipIf(sinBase)('auth contra Postgres', () => {
       payload: { nombre: 'Caja 2', sucursal: 'Principal' },
     })
     expect(conPermiso.statusCode, conPermiso.body).toBe(201)
+  })
+
+  it('el login se frena después de demasiados intentos fallidos para el mismo email', async () => {
+    await registrar('limite')
+
+    for (let intento = 1; intento <= MAXIMO_INTENTOS_POR_DEFECTO; intento += 1) {
+      const fallo = await app.inject({
+        method: 'POST',
+        url: '/auth/sesion',
+        payload: { email: email('limite'), password: 'no-es-la-contraseña' },
+      })
+      expect(fallo.statusCode, `intento ${intento}: ${fallo.body}`).toBe(401)
+    }
+
+    // La contraseña correcta tampoco entra: el bloqueo es del par (email, cliente), no del intento.
+    const bloqueado = await app.inject({
+      method: 'POST',
+      url: '/auth/sesion',
+      payload: { email: email('limite'), password: PASSWORD },
+    })
+    expect(bloqueado.statusCode, bloqueado.body).toBe(429)
+    expect(bloqueado.json().error.code).toBe('demasiados_intentos')
+    expect(String(bloqueado.json().error.mensaje)).toContain('Demasiados intentos')
+
+    // Otro email del mismo local no queda castigado por el ataque a este.
+    const otro = await registrar('limite-otro')
+    expect(otro.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
   })
 
 })
