@@ -64,6 +64,16 @@ ul {
   align-items: start;
 }
 
+/* Rol sólo lectura: COBRAR no se ve (0001 §6, `0003` §Auth).
+ *
+ * Es una pista visual, no el permiso: `App.tsx` rechaza abrir la hoja y cobrar aunque la acción se
+ * invoque igual. La regla vive acá, sobre el contenedor de la pantalla de venta, porque la bandeja
+ * es una pieza compartida y no tiene por qué saber de roles.
+ */
+.pos--solo-lectura [aria-label='Cobrar'] {
+  display: none;
+}
+
 /* Encabezado ---------------------------------------------------------------------------------- */
 
 .encabezado {
