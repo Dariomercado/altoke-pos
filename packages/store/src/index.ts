@@ -1,0 +1,5 @@
+export { crearIndexedDbStore } from './indexeddb'
+export type { OpcionesIndexedDb } from './indexeddb'
+export { crearStoreEnMemoria } from './memoria'
+export { leerDeLibro, ordenarLibro, proyectarLibroOrdenado, validarLote } from './pos-store'
+export type { PosStore } from './pos-store'

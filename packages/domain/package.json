@@ -1,0 +1,10 @@
+{
+  "name": "@altoke/domain",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Lógica pura del dominio: dinero, libro de eventos, arqueo. Sin IO.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" }
+}
