@@ -158,6 +158,28 @@ describe('syncTraerRespuesta', () => {
     expect(resultado.dato.hayMas).toBe(false)
   })
 
+  it('ilegibles ausente vale 0: una respuesta de un servidor anterior sigue parseando', () => {
+    const resultado = parsearSyncTraerRespuesta({ eventos: [], acuse: ACUSE, siguienteDesde: null })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    expect(resultado.dato.ilegibles).toBe(0)
+  })
+
+  it('reporta las filas ilegibles que el servidor salteó', () => {
+    const resultado = parsearSyncTraerRespuesta({
+      eventos: [],
+      acuse: ACUSE,
+      hayMas: false,
+      siguienteDesde: null,
+      ilegibles: 2,
+    })
+
+    expect(resultado.ok).toBe(true)
+    if (!resultado.ok) return
+    expect(resultado.dato.ilegibles).toBe(2)
+  })
+
   it('no coacciona hayMas desde un texto: `"true"` no es true', () => {
     const resultado = parsearSyncTraerRespuesta({
       eventos: [],

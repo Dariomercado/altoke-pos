@@ -11,8 +11,9 @@
  *   - **Al leer se migra en memoria.** El cuerpo sale de `cuerpo jsonb` con la `schemaVersion` con
  *     la que lo escribió la terminal y se pasa por la cadena compartida del dominio antes de
  *     validarlo (`0003` §schemaVersion): la fila no se toca. Una fila de una versión que este
- *     código no entiende **lanza** en vez de devolverse sin migrar: aplicarle las reglas de hoy
- *     sería corrupción silenciosa, y saltearla perdería un evento.
+ *     código no entiende **se saltea y se cuenta** (`ilegibles`): aplicarle las reglas de hoy sería
+ *     corrupción silenciosa, y una sola fila ilegible no puede dejar a todo el tenant sin pull. La
+ *     fila queda guardada tal cual, para que un servidor más nuevo sí la lea.
  *   - **El acuse es el máximo contiguo**, no el máximo. Un hueco es dato que la terminal todavía
  *     debe: acusar más allá le diría que deje de reenviar eventos que nunca llegaron.
  *   - **`recibido_en` es el cursor de la traída y es único por tenant.** `now()` es el reloj de la
@@ -275,6 +276,8 @@ export type Traida = {
   readonly hayMas: boolean
   /** El `desde` de la página siguiente, o `null` si no hay más (0003 §Traer). */
   readonly siguienteDesde: string | null
+  /** Cuántas filas se saltearon porque este código no las pudo migrar. Se reporta, no se adivina. */
+  readonly ilegibles: number
 }
 
 export type OpcionesDeTraida = {
@@ -296,6 +299,12 @@ export type OpcionesDeTraida = {
  *
  * Cada cuerpo se migra a la versión de hoy antes de devolverse (0003 §schemaVersion). Lo que está
  * guardado no cambia: la fila conserva su `schema_version` y su cuerpo original.
+ *
+ * Una fila que la cadena no puede migrar (una `schemaVersion` más nueva que este código) se saltea y
+ * suma a `ilegibles`. Devolverla sin migrar sería aplicar reglas ajenas, y hacer fallar la traída
+ * entera dejaría a todas las terminales del tenant sin pull por una fila que nadie puede corregir:
+ * el servidor no reescribe eventos. El cursor de la página sigue avanzando con la última fila leída,
+ * así que la ilegible no se repite en la página siguiente.
  */
 export async function traerEventos(
   conexion: Consultable,
@@ -317,9 +326,20 @@ export async function traerEventos(
   const hayMas = resultado.rows.length > LIMITE_PAGINA
   const ultima = pagina[pagina.length - 1]
 
+  const eventos: Evento[] = []
+  let ilegibles = 0
+  for (const fila of pagina) {
+    try {
+      eventos.push(migrarEvento(fila['cuerpo'], cadena))
+    } catch {
+      ilegibles += 1
+    }
+  }
+
   return {
-    eventos: pagina.map((fila) => migrarEvento(fila['cuerpo'], cadena)),
+    eventos,
     hayMas,
     siguienteDesde: hayMas && ultima !== undefined ? aTexto(ultima['recibido']) : null,
+    ilegibles,
   }
 }

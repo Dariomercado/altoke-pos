@@ -88,6 +88,10 @@ export type SyncTraerConsulta = z.infer<typeof syncTraerConsulta>
  * Viaja como `null` explícito y no como ausente porque "el campo no vino" es exactamente la
  * ambigüedad que `hayMas` ya paga: con el cursor, un ausente se leería como "no pidas más" y el
  * cliente se quedaría con eventos sin traer.
+ *
+ * `ilegibles` es la cantidad de filas guardadas que este servidor no pudo migrar y por eso salteó:
+ * se reporta y no se adivina. Ausente vale `0`, así una respuesta de un servidor anterior sigue
+ * parseando; el cliente no puede confundir "no vino" con "había una ilegible".
  */
 export const syncTraerRespuesta = z.object({
   eventos: z.array(esquemaEvento, { error: 'eventos debe ser una lista de eventos.' }),
@@ -96,9 +100,19 @@ export const syncTraerRespuesta = z.object({
   siguienteDesde: z
     .iso.datetime({ error: 'siguienteDesde debe ser una fecha ISO-8601 o null.' })
     .nullable(),
+  ilegibles: enteroNoNegativo('ilegibles').default(0),
 })
 
-export type SyncTraerRespuesta = z.infer<typeof syncTraerRespuesta>
+export type SyncTraerRespuestaParseada = z.infer<typeof syncTraerRespuesta>
+
+/**
+ * `ilegibles` queda opcional en el tipo aunque el schema lo complete con `0` en runtime: un cliente
+ * o un fixture construido antes de que el campo existiera sigue tipando, igual que sigue
+ * parseando una respuesta vieja. Después de `parsearSyncTraerRespuesta` el valor siempre está.
+ */
+export type SyncTraerRespuesta = Omit<SyncTraerRespuestaParseada, 'ilegibles'> & {
+  readonly ilegibles?: number
+}
 
 export function parsearSyncEmpujarSolicitud(valor: unknown): Resultado<SyncEmpujarSolicitud> {
   return parsear(syncEmpujarSolicitud, valor)

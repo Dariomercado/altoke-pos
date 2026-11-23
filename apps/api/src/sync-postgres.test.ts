@@ -431,37 +431,42 @@ describe.skipIf(sinBase)('sync contra Postgres', () => {
     )
   })
 
-  it('una fila guardada con schemaVersion futura no se traga en silencio: la traída falla', async () => {
+  it('una fila ilegible se saltea y se cuenta: no envenena la traída del tenant', async () => {
     const cuenta = await registrar('futura-lectura')
     const terminal = `caja-${sufijo}-16`
+    const lectora = otraTerminal(terminal)
     const futura = SCHEMA_VERSION_SOPORTADA + 1
-    const cuerpo = evento(cuenta.tenant.id, terminal, 1, { schemaVersion: futura })
+    const ilegible = evento(cuenta.tenant.id, terminal, 2, { schemaVersion: futura })
+
+    // Un evento válido antes y otro después dejan la fila ilegible en el medio de la página: si la
+    // traída entera fallara, el tenant se quedaría sin pull por una fila que nadie puede corregir.
+    await empujar(cuenta.token, terminal, [evento(cuenta.tenant.id, terminal, 1)])
 
     // Como dueño: RLS no lo alcanza y es la única forma de dejar una fila que este código no
     // sabe leer (un servidor más nuevo escribió antes que éste).
     await duenio.query(
       `INSERT INTO eventos (id, tenant_id, terminal_id, secuencia, tipo, ocurrido_en,
                             schema_version, cuerpo, recibido_en)
-       VALUES ($1, $2, $3, 1, 'ajuste_stock', '2026-11-22T10:00:00.000Z', $4, $5::jsonb, clock_timestamp())`,
-      [cuerpo['id'], cuenta.tenant.id, terminal, futura, JSON.stringify(cuerpo)],
+       VALUES ($1, $2, $3, 2, 'ajuste_stock', '2026-11-22T10:00:00.000Z', $4, $5::jsonb, clock_timestamp())`,
+      [ilegible['id'], cuenta.tenant.id, terminal, futura, JSON.stringify(ilegible)],
     )
 
-    const respuesta = await app.inject({
-      method: 'GET',
-      url: `/sync/eventos?${new URLSearchParams({ terminalId: otraTerminal(terminal) }).toString()}`,
-      headers: bearer(cuenta.token),
-    })
+    await empujar(cuenta.token, terminal, [evento(cuenta.tenant.id, terminal, 3)])
 
-    // Devolverla sin migrar sería aplicar un cuerpo con las reglas de otra versión; descartarla
-    // perdería un evento. Falla entero, que es lo único honesto.
-    expect(respuesta.statusCode).toBe(500)
+    const respuesta = await traer(cuenta.token, lectora)
+
+    expect(secuenciasDe(respuesta['eventos']), 'la ilegible no viaja, las demás sí').toEqual([1, 3])
+    expect(respuesta['ilegibles'], 'y el hecho se cuenta en la respuesta').toBe(1)
+    expect(respuesta['hayMas']).toBe(false)
+    expect(respuesta['siguienteDesde']).toBeNull()
+
     const fila = (
       await duenio.query(
-        `SELECT schema_version FROM eventos WHERE tenant_id = $1 AND terminal_id = $2`,
+        `SELECT schema_version FROM eventos WHERE tenant_id = $1 AND terminal_id = $2 AND secuencia = 2`,
         [cuenta.tenant.id, terminal],
       )
     ).rows[0]
-    expect(fila?.['schema_version'], 'y la fila no se toca').toBe(futura)
+    expect(fila?.['schema_version'], 'la fila ilegible no se toca').toBe(futura)
   })
 
   it('cada evento del mismo lote tiene su propio recibido_en, en orden creciente', async () => {
@@ -703,6 +708,37 @@ describe.skipIf(sinBase)('sync contra Postgres', () => {
 
     const traida = await app.inject({ method: 'GET', url: '/sync/eventos?terminalId=caja' })
     expect(traida.statusCode).toBe(401)
+  })
+
+  // Vive acá porque es el único test de este cambio con una base real: el bug es de transporte y sin
+  // Postgres no se puede comprobar que la revocación de verdad deja el token sin servir.
+  it('DELETE /auth/sesion con Content-Type JSON y sin cuerpo revoca: 204 y el token deja de servir', async () => {
+    const cuenta = await registrar('logout-json')
+
+    const antes = await app.inject({
+      method: 'GET',
+      url: '/auth/yo',
+      headers: bearer(cuenta.token),
+    })
+    expect(antes.statusCode, antes.body).toBe(200)
+
+    const cerrar = await app.inject({
+      method: 'DELETE',
+      url: '/auth/sesion',
+      headers: { ...bearer(cuenta.token), 'content-type': 'application/json' },
+    })
+    expect(cerrar.statusCode, cerrar.body).toBe(204)
+    expect(cerrar.body).toBe('')
+
+    const despues = await app.inject({
+      method: 'GET',
+      url: '/auth/yo',
+      headers: bearer(cuenta.token),
+    })
+    expect(despues.statusCode, 'el token revocado ya no sirve').toBe(401)
+    expect(despues.json()).toStrictEqual({
+      error: { code: 'no_autenticado', mensaje: 'Necesitás iniciar sesión.' },
+    })
   })
 })
 

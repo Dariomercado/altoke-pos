@@ -7,6 +7,13 @@
  * spec nombra son los del cliente; `error_interno` y `no_encontrado` existen para que incluso un
  * 500 o una ruta inexistente respondan con la misma forma, en vez de la forma por defecto de
  * Fastify. Una respuesta con dos formas distintas obliga al cliente a adivinar.
+ *
+ * Además de la forma de error, acá vive una corrección de transporte: Fastify 5 trata `DELETE` como
+ * un método con cuerpo, así que un `DELETE` sin cuerpo y con `Content-Type: application/json` (lo
+ * que manda un cliente que fija ese content type para todo) muere con un 400 antes de llegar al
+ * handler. Para una ruta sin cuerpo eso no es input inválido: es un cuerpo vacío. El hook le saca
+ * el content type solo a un `DELETE` sin bytes, así el parser por defecto —con su protección de
+ * prototipos— sigue manejando cualquier cuerpo real.
  */
 
 import type { FastifyInstance } from 'fastify'
@@ -89,6 +96,22 @@ function estadoDelError(error: unknown): number {
 }
 
 export function registrarManejadoresDeError(app: FastifyInstance): void {
+  // Un `DELETE` sin cuerpo es el caso normal de una ruta que no recibe body (`DELETE /auth/sesion`).
+  // Fastify le da cuerpo a `DELETE`, así que el content type JSON dispara el parser y un cuerpo de
+  // cero bytes se rechaza como JSON vacío. Borrar el encabezado cuando no hay bytes lo convierte en
+  // lo que siempre fue —un pedido sin cuerpo— sin tocar el parseo de los que sí traen uno.
+  app.addHook('onRequest', async (request) => {
+    if (request.method !== 'DELETE') return
+    if (typeof request.headers['content-type'] !== 'string') return
+
+    const sinCuerpo =
+      request.headers['transfer-encoding'] === undefined &&
+      (request.headers['content-length'] === undefined || request.headers['content-length'] === '0')
+    if (!sinCuerpo) return
+
+    delete request.headers['content-type']
+  })
+
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ErrorApi) {
       request.log.info({ codigo: error.codigo, detalle: error.detalle }, 'pedido rechazado')

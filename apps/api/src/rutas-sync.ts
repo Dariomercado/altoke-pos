@@ -294,6 +294,8 @@ export function registrarRutasSync(app: FastifyInstance, fuente: FuenteDeConexio
           acuse: { terminalId: consulta.terminalId, ultimaSecuencia: acuse.ultimaSecuencia },
           hayMas: traida.hayMas,
           siguienteDesde: traida.siguienteDesde,
+          // Una fila que este código no puede leer se saltea y se informa; no deja al tenant sin pull.
+          ilegibles: traida.ilegibles,
         }
       },
     )

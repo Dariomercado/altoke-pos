@@ -101,7 +101,7 @@ un health check que miente o que devuelve 500 cuando la base está caída es peo
 | `POST`   | `/tenants/:slug/terminales`            | `owner`/`admin` | 201: `{ id, nombre, tenantId, sucursal }` |
 | `POST`   | `/tenants/:slug/usuarios/:id/password` | `owner`/`admin` | 200: `{ ok: true }` |
 | `POST`   | `/sync/eventos`                        | `cajero`/`admin`/`owner` | 200: `{ aceptados, duplicados, conflictos, rechazados, acuse, huecos }` |
-| `GET`    | `/sync/eventos?terminalId=&desde=`     | cualquier rol (incluido `solo_lectura`) | 200: `{ eventos, acuse, hayMas, siguienteDesde }` |
+| `GET`    | `/sync/eventos?terminalId=&desde=`     | cualquier rol (incluido `solo_lectura`) | 200: `{ eventos, acuse, hayMas, siguienteDesde, ilegibles }` |
 
 - **Reset de contraseña:** `owner`/`admin` y el rol del objetivo **estrictamente menor** que el del
   actor (`owner` → `admin`/`cajero`/`solo_lectura`; `admin` → `cajero`/`solo_lectura`). Resetear a
@@ -119,6 +119,11 @@ un health check que miente o que devuelve 500 cuando la base está caída es peo
   transacción. Un email o slug tomado es `validacion` con `detalle.campo` y no deja nada a medias.
 - **`X-Tenant`:** el slug (o el id) del tenant con el que se atiende el pedido. Con una sola
   membresía se puede omitir; con varias es obligatorio, y el servidor no elige al azar.
+- **`DELETE /auth/sesion` sin cuerpo:** un cliente que fija `Content-Type: application/json` para
+  todos sus pedidos no rompe el logout. Un cuerpo de cero bytes en un método sin cuerpo se trata
+  como lo que es —sin cuerpo— y la revocación ocurre: responde 204 y el token deja de servir. Un
+  logout que falla en silencio por un encabezado sería un agujero de seguridad disfrazado de
+  error de validación.
 - **Rol:** se lee de `membresias` para el tenant elegido. Un tenant ajeno es `sin_permiso`, nunca un
   resultado vacío que parezca éxito.
 
@@ -213,7 +218,8 @@ El acuse se persiste en `acuses` con `GREATEST(...)`: nunca retrocede. Un `GET` 
   "eventos": [ /* Evento[] */ ],
   "acuse": { "terminalId": "caja-1", "ultimaSecuencia": 3 },
   "hayMas": true,
-  "siguienteDesde": "2026-11-23T03:00:29.123456Z"
+  "siguienteDesde": "2026-11-23T03:00:29.123456Z",
+  "ilegibles": 0
 }
 ```
 
@@ -231,6 +237,12 @@ El acuse se persiste en `acuses` con `GREATEST(...)`: nunca retrocede. Un `GET` 
   truncarlo a milisegundos repite el evento de la frontera (y un `ajuste_stock` aplicado dos veces es
   stock mal contado).
 - **`solo_lectura` puede traer.** Leer es exactamente lo que hace ese rol; empujar no.
+- **`ilegibles` (adición a `0003` §Traer).** Una fila guardada con una `schemaVersion` más nueva que
+  este código no se puede migrar hacia atrás ni corregir: el servidor no reescribe eventos. Antes
+  esa fila hacía fallar la traída entera (500 para todo el tenant, para siempre). Ahora se saltea,
+  se cuenta y viaja en `ilegibles`; el resto de la página se entrega y el cursor avanza. El campo
+  ausente vale `0`, así una respuesta de un servidor anterior sigue parseando. Una fila ilegible es
+  un hecho que se reporta, no una razón para dejar a toda la tienda sin pull.
 
 #### Por qué `recibido_en` es único por tenant
 
@@ -338,3 +350,26 @@ perdía en silencio.
 Los tests que no necesitan base usan un doble (`src/dobles.ts`) que devuelve filas guionadas y
 registra cada consulta con su conexión: así se verifica que `BEGIN`, `set_config`, `COMMIT` y
 `release()` ocurren en la misma conexión.
+
+### Sonda de carrera de sobreventa (no es un test)
+
+`odd/probes/carrera-de-sobreventa.mjs` comprueba el advisory lock que serializa la detección de
+sobreventa. **No es un test de la suite**: la carrera necesita dos conexiones HTTP reales y un
+Postgres real, y `app.inject` comparte el proceso: con el lock removido el test in-process igual
+pasa 4/4, así que un test daría una falsa sensación de cobertura. La sonda se corre a mano contra
+una API levantada y sale con código distinto de cero si falta la alerta.
+
+```bash
+# Con la API corriendo (ver arriba), desde la raíz del repo:
+node odd/probes/carrera-de-sobreventa.mjs
+
+# Otra API o más rondas (default: http://localhost:3001 y 6):
+PROBE_API=http://localhost:3001 PROBE_RONDAS=6 node odd/probes/carrera-de-sobreventa.mjs
+```
+
+Registra un tenant propio, siembra stock 1 y dispara dos `POST /sync/eventos` concurrentes desde
+conexiones separadas (`agent: false`), cada uno vendiendo la última unidad. Espera **exactamente
+una** `sobreventa_detectada` con `stockProyectado: -1` por ronda e imprime lo que observó. Corre
+varias rondas a propósito: con el lock roto una sola carrera puede tener suerte, y la sonda tiene
+que fallar de forma confiable. Deja un tenant de sonda en la base: no hay endpoint de borrado y no
+se toca la base a mano desde la sonda.
