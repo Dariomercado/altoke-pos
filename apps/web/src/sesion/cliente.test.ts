@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Mock } from 'vitest'
-import { crearClienteDeSesion } from './cliente.ts'
+import { API_PUBLICA, RUTA_API_EN_DESARROLLO, baseUrlDesdeEntorno, crearClienteDeSesion } from './cliente.ts'
 import { SESION_DE_PRUEBA } from './dobles.ts'
 
 const BASE = 'https://api.test'
@@ -143,5 +143,26 @@ describe('cliente de sesión', () => {
     const cabeceras = init?.headers as Record<string, string>
     expect(cabeceras.authorization).toBe(`Bearer ${SESION_DE_PRUEBA.token}`)
     expect(cabeceras['x-tenant']).toBe(SESION_DE_PRUEBA.tenant.slug)
+  })
+})
+
+describe('baseUrlDesdeEntorno', () => {
+  it('en desarrollo sin VITE_API_URL apunta al proxy de Vite, no a producción', () => {
+    expect(baseUrlDesdeEntorno({ DEV: true })).toBe(RUTA_API_EN_DESARROLLO)
+  })
+
+  it('en desarrollo respeta la API configurada, recortada', () => {
+    expect(baseUrlDesdeEntorno({ DEV: true, VITE_API_URL: ' http://localhost:4000 ' })).toBe(
+      'http://localhost:4000',
+    )
+  })
+
+  it('en producción sin VITE_API_URL sigue siendo la API pública', () => {
+    expect(baseUrlDesdeEntorno({ DEV: false })).toBe(API_PUBLICA)
+  })
+
+  it('una VITE_API_URL vacía no gana: cae en el default del entorno', () => {
+    expect(baseUrlDesdeEntorno({ DEV: false, VITE_API_URL: '   ' })).toBe(API_PUBLICA)
+    expect(baseUrlDesdeEntorno({ DEV: true, VITE_API_URL: '' })).toBe(RUTA_API_EN_DESARROLLO)
   })
 })

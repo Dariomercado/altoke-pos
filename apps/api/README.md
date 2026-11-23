@@ -31,8 +31,9 @@ Si preferís un archivo en vez de exportar variables:
 node --env-file=apps/api/.env src/index.ts
 ```
 
-`.env` y `.env.*` están en el `.gitignore` de la raíz (`!.env.example` sigue versionado): las
-credenciales locales no se commitean.
+`.env` y `.env.*` están en el `.gitignore` de la raíz. **No hay `.env.example` en el repo** y no
+hace falta: las variables son cinco y están en la tabla de abajo, y para desarrollo alcanza con
+pasarlas en la línea de comandos.
 
 ## Variables de entorno
 
@@ -280,6 +281,12 @@ transacción: una conexión devuelta al pool nunca arrastra el tenant de un pedi
 
 `0003` §Infraestructura: el POS vive en `slug.altoke.app` y la API en `api.altoke.app`, así que
 CORS es explícito — **sólo los orígenes de tenant declarados, con credenciales**.
+
+En desarrollo no hace falta declarar nada: la web llama a `/api/...` en su propio origen y el proxy
+de `apps/web/vite.config.ts` reenvía al API **sacando el `Origin`**, así que el salto Vite→API no
+es un pedido de navegador. Declará `CORS_ORIGINS=http://localhost:5173` sólo si vas a apuntar la
+web directo al API con `VITE_API_URL`: ahí el navegador sí cruza origen, y un 403 sin
+`Access-Control-Allow-Origin` se ve igual que una red caída.
 
 - `CORS_ORIGINS` es una lista separada por coma de orígenes completos
   (`https://kiosco.altoke.app,https://otro.altoke.app`). Sin la variable no hay ningún origen
