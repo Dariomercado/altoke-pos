@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: altoke-db
+    environment:
+      POSTGRES_DB: altoke
+      POSTGRES_USER: altoke
+      POSTGRES_PASSWORD: altoke
+    ports:
+      # 5435 y no 5432 ni 5433: el 5432 suele estar tomado por un Postgres local y el 5433 por
+      # el contenedor de otro proyecto de esta máquina. 5435 está libre.
+      - "5435:5432"
+    volumes:
+      - altoke-db:/var/lib/postgresql/data
+      # Rol `altoke_app` (la API) en un volumen nuevo. En una base ya inicializada el mismo rol y
+      # los mismos grants los aplica `apps/api/migrations/0002_rol_app.sql`.
+      - ./apps/api/docker/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U altoke -d altoke"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  altoke-db:

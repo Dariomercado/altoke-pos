@@ -1,10 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import type { Evento } from '@altoke/domain'
+import { describe, expect, it, vi } from 'vitest'
+import type { EmisionFiscal, Evento, ModoFiscal } from '@altoke/domain'
 import { crearStoreEnMemoria } from '@altoke/store'
 import { ALICUOTA_KIOSCO } from './venta'
 import type { LineaDeVenta } from './venta'
 import { crearCaja } from './caja'
-import type { Caja } from './caja'
+import type { Caja, OutboxFiscal } from './caja'
 
 const TENANT = 'kiosco-1'
 const TERMINAL = 'term-1'
@@ -19,7 +19,10 @@ function alfajor(cantidad = 1): LineaDeVenta {
   }
 }
 
-async function cajaDePrueba(): Promise<{ caja: Caja; libro: () => Promise<Evento[]> }> {
+async function cajaDePrueba(opciones: OpcionesDePrueba = {}): Promise<{
+  caja: Caja
+  libro: () => Promise<Evento[]>
+}> {
   const store = crearStoreEnMemoria()
   let n = 0
 
@@ -29,9 +32,16 @@ async function cajaDePrueba(): Promise<{ caja: Caja; libro: () => Promise<Evento
     terminalId: TERMINAL,
     ahora: () => '2026-11-22T10:00:00.000Z',
     nuevoId: () => `id-${++n}`,
+    ...opciones,
   })
 
   return { caja, libro: () => store.leerDesde(TERMINAL, 0) }
+}
+
+interface OpcionesDePrueba {
+  /** `tenants.modo_fiscal`: por defecto el de M2, F0 (`ninguno`). */
+  readonly modoFiscal?: ModoFiscal
+  readonly outbox?: OutboxFiscal
 }
 
 describe('caja — abrir y cobrar', () => {
@@ -198,6 +208,25 @@ describe('caja — anular y cerrar', () => {
 
     await expect(caja.cerrarTurno({})).rejects.toThrow(/turno abierto/i)
   })
+
+  it('rechaza el cobro en un turno ya cerrado y no escribe nada', async () => {
+    const { caja, libro } = await cajaDePrueba()
+    await caja.abrirTurno(5000)
+    await caja.cobrar([alfajor(1)], [{ medio: 'efectivo', montoCentavos: 1210 }])
+    await caja.cerrarTurno({ 5_000: 1, 1_000: 1, 200: 1, 10: 1 })
+
+    // La caja no depende de que la pantalla esconda la bandeja: relee el turno al escribir.
+    const eventosAntes = await libro()
+    const turnoAntes = (await caja.estado()).turno
+
+    await expect(
+      caja.cobrar([alfajor(1)], [{ medio: 'efectivo', montoCentavos: 1210 }]),
+    ).rejects.toThrow('No hay turno abierto: abrí la caja antes de cobrar.')
+
+    expect(await libro()).toHaveLength(eventosAntes.length)
+    expect(await libro()).toEqual(eventosAntes)
+    expect((await caja.estado()).turno).toEqual(turnoAntes)
+  })
 })
 
 describe('caja — inventario inicial', () => {
@@ -221,5 +250,134 @@ describe('caja — inventario inicial', () => {
       expect.objectContaining({ sku: 'agua', delta: 5, causa: 'inicial' }),
     ])
     expect((await caja.estado()).stock).toEqual({ alfajor: 10, agua: 5 })
+  })
+})
+
+/**
+ * El outbox fiscal (0002 §3, 0003 §Outbox fiscal): en M2 el camino existe y está **apagado**.
+ *
+ * Lo que estos tests defienden, en orden de importancia:
+ *
+ *   1. **Nunca se pierde una venta por un problema fiscal.** Con el outbox caído —síncrono o
+ *      rechazando— la venta se escribe y el turno suma igual. El cobro no lo espera.
+ *   2. **En F0 no se encola nada.** El tenant `ninguno` no emite comprobante, así que el outbox de
+ *      M2 queda vacío aunque el camino esté escrito.
+ *   3. **El camino está de verdad conectado**, no comentado: en un modo que emite, el cobro deja
+ *      una emisión `pendiente` de esa venta, y la deja *después* de escribir la venta.
+ *
+ * El tercero es el que obliga a que el seam exista; el primero es el que decide cómo se llama.
+ */
+describe('caja — outbox fiscal', () => {
+  it('en F0 el cobro confirmado no encola nada y la venta se escribe igual que siempre', async () => {
+    const outbox: OutboxFiscal = { encolar: vi.fn(async () => {}) }
+    const { caja, libro } = await cajaDePrueba({ modoFiscal: 'ninguno', outbox })
+
+    await caja.abrirTurno(5000)
+    const venta = await caja.cobrar([alfajor(2)], [{ medio: 'efectivo', montoCentavos: 5000 }])
+
+    await new Promise((resolver) => setTimeout(resolver, 0))
+
+    expect(outbox.encolar).not.toHaveBeenCalled()
+
+    // El camino de la venta no cambió: los mismos eventos, el mismo total, el mismo vuelto.
+    expect(venta).toMatchObject({ totalCentavos: 2420, cambioCentavos: 2580 })
+    expect((await libro()).map((evento) => evento.tipo)).toEqual([
+      'turno_abierto',
+      'venta_iniciada',
+      'item_agregado',
+      'pago_registrado',
+      'venta_confirmada',
+    ])
+    expect((await caja.estado()).turno).toMatchObject({
+      abierto: true,
+      ventasConfirmadas: 1,
+      totalCentavos: 2420,
+      cobradoCentavos: 5000,
+    })
+  })
+
+  it('el cobro se escribe aunque el outbox tire: la venta no se pierde', async () => {
+    const outbox: OutboxFiscal = {
+      encolar: vi.fn(() => {
+        throw new Error('el emisor fiscal no responde')
+      }),
+    }
+    const { caja, libro } = await cajaDePrueba({ modoFiscal: 'controlador_fiscal', outbox })
+
+    await caja.abrirTurno(0)
+    const venta = await caja.cobrar([alfajor(1)], [{ medio: 'efectivo', montoCentavos: 1210 }])
+
+    expect(venta.totalCentavos).toBe(1210)
+    expect(outbox.encolar).toHaveBeenCalledTimes(1)
+    expect((await libro()).filter((evento) => evento.tipo === 'venta_confirmada')).toHaveLength(1)
+    expect((await caja.estado()).turno).toMatchObject({
+      ventasConfirmadas: 1,
+      totalCentavos: 1210,
+      cobradoCentavos: 1210,
+    })
+  })
+
+  it('tampoco se pierde si el outbox rechaza: el cobro no lo espera', async () => {
+    const outbox: OutboxFiscal = {
+      encolar: vi.fn(async () => {
+        throw new Error('sin red')
+      }),
+    }
+    const { caja, libro } = await cajaDePrueba({ modoFiscal: 'factura_electronica', outbox })
+
+    await caja.abrirTurno(0)
+    await caja.cobrar([alfajor(1)], [{ medio: 'efectivo', montoCentavos: 1210 }])
+
+    // El rechazo se descarta en el propio cobro: si quedara suelto, este `await` lo haría visible
+    // como unhandled y la suite fallaría por una venta que se cobró bien.
+    await new Promise((resolver) => setTimeout(resolver, 0))
+
+    expect((await libro()).filter((evento) => evento.tipo === 'venta_confirmada')).toHaveLength(1)
+    expect((await caja.estado()).turno.totalCentavos).toBe(1210)
+  })
+
+  it('en un modo que emite, encola una emisión pendiente después de escribir la venta', async () => {
+    const store = crearStoreEnMemoria()
+    let n = 0
+    const encoladas: EmisionFiscal[] = []
+    const libroAlEncolar: string[][] = []
+
+    const outbox: OutboxFiscal = {
+      async encolar(emision: EmisionFiscal): Promise<void> {
+        encoladas.push(emision)
+        libroAlEncolar.push((await store.leerDesde(TERMINAL, 0)).map((evento) => evento.tipo))
+      },
+    }
+
+    const caja = crearCaja({
+      store,
+      tenantId: TENANT,
+      terminalId: TERMINAL,
+      ahora: () => '2026-11-22T10:00:00.000Z',
+      nuevoId: () => `id-${++n}`,
+      modoFiscal: 'controlador_fiscal',
+      outbox,
+    })
+
+    await caja.abrirTurno(0)
+    const venta = await caja.cobrar([alfajor(1)], [{ medio: 'efectivo', montoCentavos: 1210 }])
+
+    // El cobro no espera al outbox: lo que encoló se mira un tick después, no en el `cobrar`.
+    await new Promise((resolver) => setTimeout(resolver, 0))
+
+    expect(encoladas).toEqual([
+      expect.objectContaining({
+        tenantId: TENANT,
+        ventaId: venta.ventaId,
+        estado: 'pendiente',
+        intentos: 0,
+        motivo: null,
+        creadoEn: '2026-11-22T10:00:00.000Z',
+      }),
+    ])
+    // El orden importa: cuando la emisión se encola, la venta ya está en el libro.
+    expect(libroAlEncolar).toEqual([
+      ['turno_abierto', 'venta_iniciada', 'item_agregado', 'pago_registrado', 'venta_confirmada'],
+    ])
   })
 })

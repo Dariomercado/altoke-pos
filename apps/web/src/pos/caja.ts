@@ -7,7 +7,9 @@
  *
  * Reglas que esta capa impone, porque nadie más las puede imponer:
  *   - **No se cobra sin turno abierto.** Un kiosco abre la caja con fondo y cierra al final; sin
- *     turno no hay arqueo posible y el cierre de turno queda huérfano.
+ *     turno no hay arqueo posible y el cierre de turno queda huérfano. El turno se relee **al
+ *     escribir**, no se recuerda: otra pestaña u otra terminal pueden haberlo cerrado, y la
+ *     pantalla no es la que decide si se puede cobrar.
  *   - **No se confirma una venta mal cobrada.** Si los pagos no alcanzan el total, no se escribe
  *     nada: cobrar de menos es un error del cajero, no un estado del negocio.
  *   - **La secuencia es estrictamente creciente por terminal**, que es lo único que hace
@@ -16,13 +18,22 @@
  *   - **El cambio sale sólo del efectivo**: con tarjeta no se da vuelto.
  */
 
-import { arqueoDesdeTurno, proyeccionStock, proyeccionTurno, resumirTurno } from '@altoke/domain'
+import {
+  arqueoDesdeTurno,
+  emisionInicial,
+  proyeccionStock,
+  proyeccionTurno,
+  requiereEmisionFiscal,
+  resumirTurno,
+} from '@altoke/domain'
 import type {
   Arqueo,
   Centavos,
   ConteoPorDenominacion,
+  EmisionFiscal,
   Evento,
   MedioPago,
+  ModoFiscal,
   ResumenTurno,
   StockPorSku,
 } from '@altoke/domain'
@@ -53,9 +64,29 @@ export interface OpcionesCaja {
   readonly store: PosStore
   readonly tenantId: string
   readonly terminalId: string
+  /**
+   * Modo fiscal del tenant (`tenants.modo_fiscal`, 0003 §Esquema). Por defecto F0 (`ninguno`):
+   * M2 no emite comprobantes, el ticket sigue siendo interno.
+   */
+  readonly modoFiscal?: ModoFiscal
+  /** Outbox fiscal. Sin outbox, o en F0, el cobro no encola nada. */
+  readonly outbox?: OutboxFiscal
   /** Inyectables para test: en la app son la hora del sistema y un UUID. */
   readonly ahora?: () => string
   readonly nuevoId?: () => string
+}
+
+/**
+ * Puerto del outbox fiscal (`0002` §3, `0003` §Outbox fiscal): donde la venta deja su deuda
+ * documental.
+ *
+ * Devuelve `void` o una promesa porque **el cobro no lo espera**: cualquier implementación (tabla
+ * local, envío al servidor) es un efecto externo que puede tardar, fallar o no existir todavía.
+ * El contrato real es el de `caja`: no puede fallar, no puede demorar el cobro y no puede
+ * llevarse una venta puesta.
+ */
+export interface OutboxFiscal {
+  encolar(emision: EmisionFiscal): Promise<void> | void
 }
 
 export interface PagoSolicitado {
@@ -97,6 +128,11 @@ export interface Caja {
 
 export function crearCaja(opciones: OpcionesCaja): Caja {
   const { store, tenantId, terminalId } = opciones
+  // El modo se valida una vez, al crear la caja: un `modo_fiscal` que el dominio no conoce es un
+  // error de configuración del tenant, no un problema del cobro, y no tiene por qué aparecer recién
+  // en la primera venta.
+  const emiteComprobante = requiereEmisionFiscal(opciones.modoFiscal ?? 'ninguno')
+  const outbox = opciones.outbox
   const ahora = opciones.ahora ?? ((): string => new Date().toISOString())
   const nuevoId = opciones.nuevoId ?? ((): string => crypto.randomUUID())
 
@@ -135,6 +171,41 @@ export function crearCaja(opciones: OpcionesCaja): Caja {
     return { resumen, turnoId: resumen.turnoId }
   }
 
+  /**
+   * El camino fiscal del cobro (`0002` §3, `0003` §Outbox fiscal): escrito y **apagado** en F0.
+   *
+   * Existe hoy, con el outbox vacío, porque agregarlo después obliga a tocar el cobro —lo único
+   * que no se toca con clientes cobrando—. Tres reglas que esta función cumple, en este orden:
+   *
+   *   1. **Se llama después de escribir la venta.** Si el outbox explota, la venta ya está en el
+   *      libro: una venta sin comprobante es una venta válida con deuda documental.
+   *   2. **No se espera.** El cobro no puede demorarse por un efecto externo que, en F1–F3, habla
+   *      con una impresora o con el organismo; el `await` del cobro termina antes.
+   *   3. **No puede fallar hacia afuera.** Ni un lanzamiento síncrono ni una promesa rechazada
+   *      salen de acá: el cajero no puede hacer nada con ese error y la venta no se repite.
+   */
+  function encolarEnOutboxFiscal(venta: VentaCobrada): void {
+    // F0 (`0002` §2): el tenant no emite comprobante, así que el camino no encola nada. Es la
+    // razón por la que el outbox de M2 se construye vacío.
+    if (!emiteComprobante || outbox === undefined) return
+
+    try {
+      const emision = emisionInicial({
+        id: nuevoId(),
+        tenantId,
+        ventaId: venta.ventaId,
+        creadoEn: venta.ocurridoEn,
+      })
+
+      // Sin `await` a propósito (regla 2): la venta ya está cobrada y el comprobante es eventual.
+      void Promise.resolve(outbox.encolar(emision)).catch(() => {
+        // Deuda documental, no error del cobro: se ve como alerta en el cierre (`0002` §4).
+      })
+    } catch {
+      // Regla 3: ni siquiera armar o llamar al outbox puede tumbar un cobro.
+    }
+  }
+
   return {
     async abrirTurno(fondoCentavos: Centavos): Promise<void> {
       const { resumen } = await estadoTurno()
@@ -166,8 +237,12 @@ export function crearCaja(opciones: OpcionesCaja): Caja {
         )
       }
 
-      const { turnoId } = await estadoTurno()
-      if (turnoId === null) {
+      // El turno se relee acá, en el mismo camino que escribe: `turnoId` sobrevive al cierre (el
+      // cierre sólo apaga `abierto`), así que mirarlo solo dejaría escribir una venta en un turno
+      // que otra pestaña ya cerró. La pantalla que esconde la bandeja es una comodidad, no la
+      // garantía.
+      const { resumen, turnoId } = await estadoTurno()
+      if (!resumen.abierto || turnoId === null) {
         throw new Error('No hay turno abierto: abrí la caja antes de cobrar.')
       }
 
@@ -191,7 +266,7 @@ export function crearCaja(opciones: OpcionesCaja): Caja {
 
       await store.append(eventos)
 
-      return {
+      const cobrada: VentaCobrada = {
         ventaId,
         turnoId,
         lineas,
@@ -203,6 +278,11 @@ export function crearCaja(opciones: OpcionesCaja): Caja {
         cambioCentavos: Math.min(cobradoCentavos - totales.totalCentavos, efectivoCentavos),
         ocurridoEn,
       }
+
+      // La venta ya está escrita: recién acá el outbox puede enterarse de que existe.
+      encolarEnOutboxFiscal(cobrada)
+
+      return cobrada
     },
 
     async anular(ventaId: string, motivo: string): Promise<void> {

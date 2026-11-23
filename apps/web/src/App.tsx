@@ -7,6 +7,10 @@
  * el resumen del turno del libro, y el arqueo de `armarArqueo`. Todo lo que escribe eventos pasa
  * por la caja (`crearCaja`), que es la única que conoce las reglas del turno.
  *
+ * T10 le agregó arriba dos capas que no calculan plata tampoco: la sesión (login, alta, selector
+ * de tenant y roles) y el sync (un chip que reporta y un banner de sobreventa que no bloquea).
+ * La venta sigue escrita en el libro local antes de que cualquiera de las dos se entere.
+ *
  * Persistencia: una base IndexedDB por tenant (`0001` §6). El `store` se puede inyectar para los
  * tests, que usan el adaptador en memoria.
  */
@@ -17,6 +21,7 @@ import type { Arqueo, Centavos, ConteoPorDenominacion } from '@altoke/domain'
 import { crearIndexedDbStore } from '@altoke/store'
 import type { PosStore } from '@altoke/store'
 import type { MarcaTenant } from '@altoke/ui'
+import { motion } from 'motion/react'
 import { CATALOGO, STOCK_INICIAL } from './catalogo'
 import type { ProductoDeCatalogo } from './catalogo'
 import { AperturaCaja } from './components/AperturaCaja'
@@ -24,10 +29,13 @@ import { Encabezado } from './components/Encabezado'
 import { PanelCierre } from './components/PanelCierre'
 import { PanelMarca } from './components/PanelMarca'
 import { ResumenArqueo } from './components/ResumenArqueo'
-import { motion } from 'motion/react'
 import { HojaCobro } from './components/bandeja/HojaCobro'
 import { PantallaTicket } from './components/bandeja/PantallaTicket'
 import { PantallaVenta } from './components/bandeja/PantallaVenta'
+import { AvisoSobreventas } from './components/sesion/AvisoSobreventas'
+import { FlujoDeAcceso } from './components/sesion/FlujoDeAcceso'
+import { PantallaCargando } from './components/sesion/PantallaCargando'
+import { SelectorTenant } from './components/sesion/SelectorTenant'
 import { centavosDesdePesos, pesosDesdeCentavos } from './formato'
 import { MARCA_INICIAL, aplicarMarca, cargarMarca, guardarMarca } from './marca'
 import { entrada, useMovimiento } from './movimiento'
@@ -35,16 +43,15 @@ import { crearCaja } from './pos/caja'
 import type { Caja, EstadoCaja, PagoSolicitado, VentaCobrada } from './pos/caja'
 import { calcularTotales } from './pos/venta'
 import type { LineaDeVenta } from './pos/venta'
+import { crearDependenciasDeSesion, puede, useSesion, useSincronizacion } from './sesion'
+import type {
+  OpcionesSesionApp,
+  OpcionesSincronizacionApp,
+  SesionActiva,
+} from './sesion'
+import { nombreDeBaseDelTenant } from './sync'
 
-/**
- * Tenant del demo: el mismo id nombra la base local, los eventos y la marca guardada, porque la
- * base local contiene sólo su tenant y se purga al cerrar sesión (`0001` §6). El día que haya alta
- * de tenants, este id se deriva de la sesión y no se escribe a mano.
- */
-export const TENANT_ID = 'kiosco-1'
-export const NOMBRE_BASE = `altoke-${TENANT_ID}`
 export const TERMINAL_ID = 'terminal-1'
-export const NOMBRE_TENANT = 'AlToke · Kiosco demo'
 
 /** Fondo con el que arranca el demo: 50 pesos, lo que suele haber en un cajón chico. */
 const FONDO_POR_DEFECTO = 5000
@@ -52,9 +59,73 @@ const FONDO_POR_DEFECTO = 5000
 export interface AppProps {
   /** Inyectable para tests; en el navegador se usa IndexedDB. */
   readonly store?: PosStore
+  /**
+   * Inyectable para tests (y para el arranque ya resuelto): una sesión salta la lectura del
+   * almacén, `null` es "sin sesión" explícito y omitirla arranca desde IndexedDB + `/auth/yo`.
+   */
+  readonly sesionInicial?: SesionActiva | null
+  /** Adaptadores del módulo de sesión (almacén, cliente HTTP, purga). */
+  readonly sesion?: OpcionesSesionApp
+  /** Adaptadores del sync (transporte, acuses, intervalo). */
+  readonly sync?: OpcionesSincronizacionApp
 }
 
-export function App({ store }: AppProps) {
+export function App({ store, sesionInicial, sesion, sync }: AppProps) {
+  const dependencias = useMemo(
+    () => crearDependenciasDeSesion(sesion),
+    [sesion?.almacen, sesion?.cliente, sesion?.purgar, sesion?.baseUrl, sesion?.fetch],
+  )
+
+  const { estado, acciones } = useSesion({
+    almacen: dependencias.almacen,
+    cliente: dependencias.cliente,
+    purgar: dependencias.purgar,
+    inicial: sesionInicial,
+  })
+
+  switch (estado.tipo) {
+    case 'cargando':
+      return <PantallaCargando />
+
+    case 'sin_sesion':
+      return (
+        <FlujoDeAcceso
+          aviso={estado.aviso}
+          onEntrar={acciones.iniciarSesion}
+          onRegistrar={acciones.registrar}
+        />
+      )
+
+    case 'eligiendo':
+      return (
+        <SelectorTenant
+          usuario={estado.usuario}
+          membresias={estado.membresias}
+          onElegir={acciones.elegirTenant}
+          onSalir={acciones.cerrarSesion}
+        />
+      )
+
+    case 'activa':
+      return (
+        <PantallaPos
+          sesion={estado.sesion}
+          store={store}
+          sync={sync}
+          onSalir={acciones.cerrarSesion}
+        />
+      )
+  }
+}
+
+interface PantallaPosProps {
+  readonly sesion: SesionActiva
+  readonly store?: PosStore | undefined
+  readonly sync?: OpcionesSincronizacionApp | undefined
+  readonly onSalir: () => Promise<void>
+}
+
+function PantallaPos({ sesion, store, sync, onSalir }: PantallaPosProps) {
   const [caja, setCaja] = useState<Caja | null>(null)
   const [estado, setEstado] = useState<EstadoCaja | null>(null)
   const [errorDeCarga, setErrorDeCarga] = useState<string | null>(null)
@@ -70,11 +141,33 @@ export function App({ store }: AppProps) {
   const [conteo, setConteo] = useState<ConteoPorDenominacion>({})
   const [ultimoCierre, setUltimoCierre] = useState<Arqueo | null>(null)
 
-  const [marca, setMarca] = useState<MarcaTenant>(() => cargarMarca(TENANT_ID))
+  const [marca, setMarca] = useState<MarcaTenant>(() => cargarMarca(sesion.tenant.id))
   const [panelMarca, setPanelMarca] = useState(false)
+
+  const puedeCobrar = puede(sesion.rol, 'cobrar')
+  const puedeCerrar = puede(sesion.rol, 'cerrar_caja')
+  const puedeMarca = puede(sesion.rol, 'administrar_marca')
 
   // M1: entrar a la venta es el primer momento animado (T8, `movimiento.ts`).
   const conMovimiento = useMovimiento()
+
+  // Una base por tenant: el id sale de la sesión, no de una constante de demo (`0001` §6).
+  const storeFinal = useMemo(
+    () =>
+      store ??
+      crearIndexedDbStore({
+        indexedDB: globalThis.indexedDB,
+        nombreDb: nombreDeBaseDelTenant(sesion.tenant.id),
+      }),
+    [store, sesion.tenant.id],
+  )
+
+  const { instantanea, sincronizarAhora } = useSincronizacion({
+    store: storeFinal,
+    sesion,
+    terminalId: TERMINAL_ID,
+    ...(sync ?? {}),
+  })
 
   // La marca se aplica sobre la raíz y no sobre un componente: los tokens bañan el POS y el ticket
   // a la vez, que es justo el contrato de las cinco variables (`0001` §7).
@@ -82,13 +175,22 @@ export function App({ store }: AppProps) {
     aplicarMarca(marca)
   }, [marca])
 
+  // Cambiar de tenant —o entrar después de un cierre de sesión— recarga la marca de ese kiosco.
+  useEffect(() => {
+    setMarca(cargarMarca(sesion.tenant.id))
+  }, [sesion.tenant.id])
+
   useEffect(() => {
     let vigente = true
-    const storeFinal =
-      store ?? crearIndexedDbStore({ indexedDB: globalThis.indexedDB, nombreDb: NOMBRE_BASE })
+    setCaja(null)
+    setEstado(null)
+    setErrorDeCarga(null)
+    setPanelCierre(false)
+    setHojaCobro(false)
+
     const cajaNueva = crearCaja({
       store: storeFinal,
-      tenantId: TENANT_ID,
+      tenantId: sesion.tenant.id,
       terminalId: TERMINAL_ID,
     })
 
@@ -109,7 +211,7 @@ export function App({ store }: AppProps) {
     return () => {
       vigente = false
     }
-  }, [store])
+  }, [storeFinal, sesion.tenant.id])
 
   const totales = useMemo(() => calcularTotales(lineas), [lineas])
 
@@ -168,14 +270,19 @@ export function App({ store }: AppProps) {
 
   /**
    * COBRAR abre la hoja de cobro; la venta todavía no se escribió. Una venta vacía no la abre:
-   * no hay medio de pago que elegir ni total que cubrir.
+   * no hay medio de pago que elegir ni total que cubrir. El rol se mira acá y no sólo en el
+   * botón: esconder COBRAR es una pista, no el permiso.
    */
   const abrirCobro = useCallback(() => {
+    if (!puedeCobrar) {
+      setError('Tu rol es de sólo lectura: no podés cobrar.')
+      return
+    }
     if (lineas.length === 0) return
 
     setError(null)
     setHojaCobro(true)
-  }, [lineas.length])
+  }, [lineas.length, puedeCobrar])
 
   async function abrirTurno(fondoPesos: string): Promise<void> {
     if (caja === null) return
@@ -201,6 +308,10 @@ export function App({ store }: AppProps) {
 
   async function cobrar(): Promise<void> {
     if (caja === null) return
+    if (!puedeCobrar) {
+      setError('Tu rol es de sólo lectura: no podés cobrar.')
+      return
+    }
 
     let pagos: readonly PagoSolicitado[]
 
@@ -225,6 +336,8 @@ export function App({ store }: AppProps) {
       setVenta(cobrada)
       setLineas([])
       setEstado(await caja.estado())
+      // La venta ya está confirmada en el libro: recién acá el sync puede empujarla. No se espera.
+      sincronizarAhora()
     } catch (causa) {
       setError(mensajeDeError(causa))
     }
@@ -234,9 +347,23 @@ export function App({ store }: AppProps) {
     setConteo((previo) => ({ ...previo, [denominacion]: cantidad }))
   }
 
+  function abrirMarca(): void {
+    if (!puedeMarca) {
+      setError('Tu rol no puede administrar la marca del kiosco.')
+      return
+    }
+
+    setPanelMarca(true)
+  }
+
   /** Una marca aceptada se aplica y se persiste: el tenant la encuentra al recargar la pestaña. */
   function aceptarMarca(nueva: MarcaTenant): void {
-    guardarMarca(TENANT_ID, nueva)
+    if (!puedeMarca) {
+      setError('Tu rol no puede administrar la marca del kiosco.')
+      return
+    }
+
+    guardarMarca(sesion.tenant.id, nueva)
     setMarca(nueva)
   }
 
@@ -244,8 +371,21 @@ export function App({ store }: AppProps) {
     aceptarMarca(MARCA_INICIAL)
   }
 
+  function abrirCierre(): void {
+    if (!puedeCerrar) {
+      setError('Tu rol es de sólo lectura: no podés cerrar el turno.')
+      return
+    }
+
+    setPanelCierre(true)
+  }
+
   async function confirmarCierre(): Promise<void> {
     if (caja === null) return
+    if (!puedeCerrar) {
+      setError('Tu rol es de sólo lectura: no podés cerrar el turno.')
+      return
+    }
 
     setError(null)
 
@@ -290,13 +430,22 @@ export function App({ store }: AppProps) {
   return (
     <div className={abierto ? 'flex min-h-dvh flex-col' : 'pos'}>
       <Encabezado
-        nombreTenant={NOMBRE_TENANT}
+        nombreTenant={sesion.tenant.nombre}
         terminalId={TERMINAL_ID}
         turno={estado.turno}
-        onAbrirMarca={() => setPanelMarca(true)}
-        onCerrarCaja={() => setPanelCierre(true)}
+        estadoSync={instantanea.estado}
+        rol={sesion.rol}
+        puedeAdministrarMarca={puedeMarca}
+        puedeCerrarCaja={puedeCerrar}
+        onAbrirMarca={abrirMarca}
+        onCerrarCaja={abrirCierre}
+        onSalir={() => {
+          void onSalir()
+        }}
         logoUrl={marca.logoUrl}
       />
+
+      <AvisoSobreventas alertas={instantanea.alertas} />
 
       {/*
        * Con el cierre o la hoja de cobro abiertos el aviso viaja adentro de esa capa: es la única
@@ -319,7 +468,9 @@ export function App({ store }: AppProps) {
         <>
           <motion.div
             {...entrada(conMovimiento, { desde: 'abajo' })}
-            className="grid h-[calc(100dvh-var(--size-header))] shrink-0 grid-rows-[minmax(0,1fr)]"
+            className={`grid h-[calc(100dvh-var(--size-header))] shrink-0 grid-rows-[minmax(0,1fr)] ${
+              puedeCobrar ? '' : 'pos--solo-lectura'
+            }`}
           >
             <PantallaVenta
               productos={CATALOGO}
@@ -372,7 +523,7 @@ export function App({ store }: AppProps) {
           {panelMarca && (
             <PanelMarca
               marca={marca}
-              nombreTenant={NOMBRE_TENANT}
+              nombreTenant={sesion.tenant.nombre}
               onCambiar={aceptarMarca}
               onRestablecer={restablecerMarca}
               onCerrar={() => setPanelMarca(false)}
@@ -395,7 +546,7 @@ export function App({ store }: AppProps) {
       {venta !== null && (
         <PantallaTicket
           venta={venta}
-          nombreTenant={NOMBRE_TENANT}
+          nombreTenant={sesion.tenant.nombre}
           terminalId={TERMINAL_ID}
           logoUrl={marca.logoUrl}
           onNuevaVenta={() => setVenta(null)}

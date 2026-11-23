@@ -11,17 +11,51 @@
  * Consecuencias que este archivo respeta:
  *   - Nadie escribe `UPDATE stock SET ...`. El stock es una proyección y puede quedar negativo:
  *     el kiosco vende el último alfajor sin saberlo y eso es un hecho, no un error (§3).
+ *   - Una sobreventa se cuenta, no se corrige: `sobreventa_detectada` es informativa. Nomás el
+ *     servidor la puede escribir, porque es el único que ve el libro de todas las terminales.
  *   - El total de una venta es el que se confirmó, no uno recalculado después: es el número que
  *     salió impreso en el ticket.
  *   - Los eventos se validan en el borde (§ puertos): IndexedDB devuelve datos que no son de
  *     fiar, y persistir un monto con centavos fraccionarios corrompe el arqueo para siempre.
  */
 
-import { esCentavos } from './dinero'
-import type { Centavos } from './dinero'
+import { esCentavos } from './dinero.ts'
+import type { Centavos } from './dinero.ts'
 
 export const MEDIOS_PAGO = ['efectivo', 'tarjeta_manual', 'transferencia', 'qr'] as const
 export type MedioPago = (typeof MEDIOS_PAGO)[number]
+
+/**
+ * La terminal reservada del servidor: sus eventos son los que ninguna caja presencia.
+ *
+ * La identidad del libro es `(tenant, terminal, secuencia)` y la secuencia es **por terminal**, así
+ * que un evento de origen servidor necesita una terminal propia. `servidor` nunca es una caja: un
+ * cliente no puede escribir con este id ni empujar los tipos de `TIPOS_DEL_SERVIDOR`.
+ */
+export const TERMINAL_DEL_SERVIDOR = 'servidor'
+
+/**
+ * Los tipos que sólo escribe el servidor.
+ *
+ * `sobreventa_detectada` nace de comparar el libro de **todas** las terminales de un tenant; una
+ * caja sola no puede saber que otra vendió la última unidad antes que ella.
+ */
+export const TIPOS_DEL_SERVIDOR = ['sobreventa_detectada'] as const
+export type TipoDelServidor = (typeof TIPOS_DEL_SERVIDOR)[number]
+
+export function esTipoDelServidor(tipo: string): tipo is TipoDelServidor {
+  return (TIPOS_DEL_SERVIDOR as readonly string[]).includes(tipo)
+}
+
+/**
+ * La versión de `schemaVersion` con la que este código escribe y la más nueva que sabe leer.
+ *
+ * Es la **única** fuente de verdad de la versión: `@altoke/contracts` deriva de acá su
+ * `SCHEMA_VERSION_SOPORTADA` y la cadena de migraciones (`migraciones.ts`) migra hasta acá, así
+ * subirla es un solo edit y no dos que pueden discrepar (0003 §schemaVersion, T7 de
+ * odd/tasks/altoke-m2-sync.md). En M2 sólo existe v1.
+ */
+export const SCHEMA_VERSION_ACTUAL = 1
 
 /** Lo que todo evento lleva, sin importar su tipo. */
 interface Envoltorio {
@@ -33,7 +67,8 @@ interface Envoltorio {
   readonly secuencia: number
   /** ISO-8601. */
   readonly ocurridoEn: string
-  readonly schemaVersion: 1
+  /** La versión con la que se escribió: es la que la cadena de migraciones lee al abrir el libro. */
+  readonly schemaVersion: typeof SCHEMA_VERSION_ACTUAL
 }
 
 export type Evento = Envoltorio &
@@ -71,6 +106,21 @@ export type Evento = Envoltorio &
     | { readonly tipo: 'venta_anulada'; readonly ventaId: string; readonly motivo: string }
     | { readonly tipo: 'ajuste_stock'; readonly sku: string; readonly delta: number; readonly causa: string }
     | { readonly tipo: 'turno_cerrado'; readonly turnoId: string; readonly declaradoCentavos: Centavos }
+    /**
+     * Dos terminales vendieron la última unidad del mismo SKU (§3). Ambas ventas valen: la
+     * mercadería salió. El evento nombra la venta, el SKU, cuántas unidades se vendieron y el stock
+     * proyectado que quedó, para que la UI lo muestre como alerta. **Es informativo**: no mueve
+     * ninguna proyección (ver `proyeccionSobreventas`).
+     */
+    | {
+        readonly tipo: 'sobreventa_detectada'
+        readonly ventaId: string
+        readonly sku: string
+        /** Unidades de ese SKU en la venta que dejó el stock bajo cero. */
+        readonly cantidad: number
+        /** El stock que resultó, negativo: es el número que el cajero tiene que ver. */
+        readonly stockProyectado: number
+      }
   )
 
 /**
@@ -128,8 +178,64 @@ export function proyeccionStock(): Proyeccion<StockPorSku> {
         case 'item_quitado':
         case 'item_devuelto':
           return mover(estado, evento.sku, evento.cantidad)
+        case 'sobreventa_detectada':
+          // Informativa: el stock ya era negativo (o lo hizo este ítem) y el evento sólo lo cuenta.
+          return estado
         default:
           return estado
+      }
+    },
+  }
+}
+
+export interface Sobreventa {
+  readonly ventaId: string
+  readonly sku: string
+  readonly cantidad: number
+  readonly stockProyectado: number
+}
+
+/** Las alertas de sobreventa, por venta y por SKU: una entrada es un hecho, no un aviso repetido. */
+export type SobreventasPorVenta = Readonly<
+  Record<string, Readonly<Record<string, Sobreventa>>>
+>
+
+/**
+ * Alertas de sobreventa que el POS muestra (0003 §Sobreventa).
+ *
+ * **Aplicar el mismo evento dos veces no agrega nada**: un cliente que trae dos veces la misma
+ * página del servidor, o que relee su propio libro, no puede terminar con la alerta duplicada. Por
+ * eso el estado es un mapa por `(venta, SKU)` y no una lista, y un hecho idéntico devuelve el mismo
+ * estado. Un hecho distinto para el mismo `(venta, SKU)` gana el último: en un libro ordenado esa es
+ * la última palabra.
+ */
+export function proyeccionSobreventas(): Proyeccion<SobreventasPorVenta> {
+  return {
+    inicial: {},
+    aplicar(estado, evento) {
+      if (evento.tipo !== 'sobreventa_detectada') return estado
+
+      const deLaVenta = estado[evento.ventaId] ?? {}
+      const previa = deLaVenta[evento.sku]
+      if (
+        previa !== undefined &&
+        previa.cantidad === evento.cantidad &&
+        previa.stockProyectado === evento.stockProyectado
+      ) {
+        return estado
+      }
+
+      return {
+        ...estado,
+        [evento.ventaId]: {
+          ...deLaVenta,
+          [evento.sku]: {
+            ventaId: evento.ventaId,
+            sku: evento.sku,
+            cantidad: evento.cantidad,
+            stockProyectado: evento.stockProyectado,
+          },
+        },
       }
     },
   }
@@ -235,6 +341,9 @@ export function proyeccionTurno(): Proyeccion<EstadoTurno> {
           }))
         case 'turno_cerrado':
           return { ...estado, abierto: false, declaradoCentavos: evento.declaradoCentavos }
+        case 'sobreventa_detectada':
+          // Informativa: una alerta no cambia el arqueo ni la venta que ya se cobró.
+          return estado
         default:
           return estado
       }
@@ -360,13 +469,24 @@ function exigirMedio(valor: unknown): void {
   }
 }
 
+function exigirEntero(valor: unknown, campo: string): void {
+  if (typeof valor !== 'number' || !Number.isInteger(valor)) {
+    throw new RangeError(`${campo} debe ser un entero: ${String(valor)}`)
+  }
+}
+
 /**
  * Valida un evento que llega de afuera (IndexedDB, un import, un formulario).
  *
  * Un evento inválido que entra al libro no se puede distinguir después de un evento raro pero
  * legítimo: el arqueo queda mal para siempre y sin rastro del culpable.
+ *
+ * `versionEsperada` es la versión cuyas reglas se aplican: por defecto la actual, y la cadena de
+ * migraciones pasa la que alcanzó. Las reglas de un cuerpo no cambian con la versión por sí solas
+ * —las cambia una migración—, así que el default es lo que usa todo el mundo y el parámetro existe
+ * para que un evento migrado a `vN` se valide como `vN` y no como el `v1` de hoy.
  */
-export function validarEvento(evento: Evento): void {
+export function validarEvento(evento: Evento, versionEsperada: number = SCHEMA_VERSION_ACTUAL): void {
   exigirTexto(evento.id, 'id')
   exigirTexto(evento.tenantId, 'tenantId')
   exigirTexto(evento.terminalId, 'terminalId')
@@ -379,7 +499,7 @@ export function validarEvento(evento: Evento): void {
     throw new TypeError(`ocurridoEn debe ser una fecha ISO-8601: ${String(evento.ocurridoEn)}`)
   }
 
-  if (evento.schemaVersion !== 1) {
+  if (evento.schemaVersion !== versionEsperada) {
     throw new RangeError(`schemaVersion no soportada: ${String(evento.schemaVersion)}`)
   }
 
@@ -438,7 +558,42 @@ export function validarEvento(evento: Evento): void {
       exigirTexto(evento.turnoId, 'turnoId')
       exigirCentavos(evento.declaradoCentavos, 'declaradoCentavos')
       return
+    case 'sobreventa_detectada':
+      exigirTexto(evento.ventaId, 'ventaId')
+      exigirTexto(evento.sku, 'sku')
+      exigirEnteroPositivo(evento.cantidad, 'cantidad')
+      exigirEntero(evento.stockProyectado, 'stockProyectado')
+      // Una sobreventa deja el stock bajo cero: un evento que dice otra cosa está mintiendo sobre
+      // el único número que el cajero va a leer.
+      if (evento.stockProyectado >= 0) {
+        throw new RangeError(`stockProyectado debe ser negativo: ${String(evento.stockProyectado)}`)
+      }
+      return
     default:
       throw new RangeError(`Tipo de evento desconocido: ${String((evento as { tipo?: unknown }).tipo)}`)
+  }
+}
+
+/**
+ * El borde del cliente: `validarEvento` más las dos reglas de origen.
+ *
+ * La caja escribe lo que presenció. Un `sobreventa_detectada` nace de comparar el libro de todas las
+ * terminales del tenant, y la terminal `servidor` es la identidad reservada para esos eventos
+ * (`0001` §3, `0003` §Sobreventa). Aceptarlos del cliente dejaría que una terminal invente alertas
+ * —o que se haga pasar por el servidor— sin que nadie pueda distinguirlo después.
+ */
+export function validarEventoDeCliente(evento: Evento): void {
+  validarEvento(evento)
+
+  if (evento.terminalId === TERMINAL_DEL_SERVIDOR) {
+    throw new RangeError(
+      `terminalId "${TERMINAL_DEL_SERVIDOR}" está reservado para los eventos del servidor.`,
+    )
+  }
+
+  if (esTipoDelServidor(evento.tipo)) {
+    throw new RangeError(
+      `El cliente no puede escribir un evento ${evento.tipo}: lo emite el servidor.`,
+    )
   }
 }

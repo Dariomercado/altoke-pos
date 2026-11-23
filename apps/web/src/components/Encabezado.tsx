@@ -1,6 +1,8 @@
 import { createElement } from 'react'
 import type { ResumenTurno } from '@altoke/domain'
-import { LogOut, Palette } from 'lucide-react'
+import { Lock, LogOut, Palette } from 'lucide-react'
+import type { Rol } from '../sesion'
+import type { EstadoSync } from '../sync'
 import { formatearCentavos } from '../formato'
 import { logoDeMarca } from '../marca'
 
@@ -8,10 +10,22 @@ export interface EncabezadoProps {
   readonly nombreTenant: string
   readonly terminalId: string
   readonly turno: ResumenTurno
+  readonly estadoSync: EstadoSync
+  readonly rol: Rol
+  readonly puedeAdministrarMarca: boolean
+  readonly puedeCerrarCaja: boolean
   readonly onAbrirMarca: () => void
   readonly onCerrarCaja: () => void
+  readonly onSalir: () => void
   /** Logo del tenant: el quinto hueco de marca (`--brand-logo`) hecho visible. */
   readonly logoUrl?: string | undefined
+}
+
+const NOMBRE_ROL: Readonly<Record<Rol, string>> = {
+  owner: 'Dueño',
+  admin: 'Administrador',
+  cajero: 'Cajero',
+  solo_lectura: 'Sólo lectura',
 }
 
 /**
@@ -25,8 +39,13 @@ export function Encabezado({
   nombreTenant,
   terminalId,
   turno,
+  estadoSync,
+  rol,
+  puedeAdministrarMarca,
+  puedeCerrarCaja,
   onAbrirMarca,
   onCerrarCaja,
+  onSalir,
   logoUrl,
 }: EncabezadoProps) {
   // Un logo en blanco es "sin logo": sin `<img src="">` y sin el warning de React.
@@ -49,10 +68,14 @@ export function Encabezado({
         <p className="truncate font-sans text-base font-semibold leading-5 tracking-[-0.01em]">
           {nombreTenant}
         </p>
-        <p className="truncate text-xs text-muted-foreground">Terminal {terminalId}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          Terminal {terminalId} · {NOMBRE_ROL[rol]}
+        </p>
       </div>
 
       <div className="ml-auto flex flex-wrap items-center gap-[var(--space-md)]">
+        <ChipDeSync estado={estadoSync} />
+
         <span
           className={`inline-flex min-h-[var(--size-touch-min)] items-center gap-[var(--space-sm)] rounded-full px-[var(--space-md)] text-xs font-semibold tracking-[0.02em] ${
             turno.abierto
@@ -77,20 +100,97 @@ export function Encabezado({
           </strong>
         </p>
 
-        <button type="button" className={BOTON_DEL_ENCABEZADO} onClick={onAbrirMarca}>
-          <Palette aria-hidden="true" className="size-4" />
-          Marca
-        </button>
+        {puedeAdministrarMarca && (
+          <button type="button" className={BOTON_DEL_ENCABEZADO} onClick={onAbrirMarca}>
+            <Palette aria-hidden="true" className="size-4" />
+            Marca
+          </button>
+        )}
 
-        {turno.abierto && (
+        {puedeCerrarCaja && turno.abierto && (
           <button type="button" className={BOTON_DEL_ENCABEZADO} onClick={onCerrarCaja}>
-            <LogOut aria-hidden="true" className="size-4" />
+            <Lock aria-hidden="true" className="size-4" />
             Cerrar caja
           </button>
         )}
+
+        <button type="button" className={BOTON_DEL_ENCABEZADO} onClick={onSalir}>
+          <LogOut aria-hidden="true" className="size-4" />
+          Salir
+        </button>
       </div>
     </header>
   )
+}
+
+/**
+ * El estado del sync es un reporte, no una compuerta: no deshabilita botones ni tapa la venta.
+ * `pendiente` y `sin_red` dicen cuántos eventos esperan, que es lo que el cajero puede notar.
+ */
+function ChipDeSync({ estado }: { readonly estado: EstadoSync }) {
+  const vista = vistaDeSync(estado)
+
+  return (
+    <span
+      data-testid="sync"
+      aria-live="polite"
+      title={vista.detalle}
+      className={`inline-flex min-h-[var(--size-touch-min)] items-center gap-[var(--space-sm)] rounded-full px-[var(--space-md)] text-xs font-semibold tracking-[0.02em] ${vista.clases}`}
+    >
+      <span aria-hidden="true" className={`size-2 rounded-full ${vista.punto}`} />
+      {vista.texto}
+    </span>
+  )
+}
+
+interface VistaDeSync {
+  readonly texto: string
+  readonly clases: string
+  readonly punto: string
+  readonly detalle: string
+}
+
+function vistaDeSync(estado: EstadoSync): VistaDeSync {
+  switch (estado.tipo) {
+    case 'sin_sesion':
+      return {
+        texto: 'Sin sesión',
+        clases: 'bg-sunken text-muted-foreground',
+        punto: 'bg-muted-foreground',
+        detalle: 'No hay una sesión activa: el sync espera.',
+      }
+    case 'sincronizando':
+      return {
+        texto: 'Sincronizando…',
+        clases: 'bg-accent text-accent-foreground',
+        punto: 'bg-primary',
+        detalle: 'Empujando lo pendiente y trayendo lo de las otras terminales.',
+      }
+    case 'al_dia':
+      return {
+        texto: 'Al día',
+        clases: 'bg-success-soft text-success-soft-foreground',
+        punto: 'bg-success',
+        detalle: 'El servidor ya acusó todo lo de esta terminal.',
+      }
+    case 'pendiente':
+      return {
+        texto: `Pendiente · ${estado.pendientes}`,
+        clases: 'bg-accent text-accent-foreground',
+        punto: 'bg-primary',
+        detalle: `${estado.pendientes} evento(s) esperando subir. La venta sigue en el libro local.`,
+      }
+    case 'sin_red':
+      return {
+        texto:
+          estado.pendientes === 0
+            ? 'Sin red'
+            : `Sin red · ${estado.pendientes} pendiente${estado.pendientes === 1 ? '' : 's'}`,
+        clases: 'bg-danger-soft text-danger-soft-foreground',
+        punto: 'bg-destructive',
+        detalle: 'No se pudo hablar con el servidor. El POS cobra igual.',
+      }
+  }
 }
 
 const BOTON_DEL_ENCABEZADO =

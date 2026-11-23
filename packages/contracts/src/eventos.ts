@@ -1,0 +1,185 @@
+/**
+ * El `Evento` del libro en el borde de la red (docs/specs/0001-arquitectura.md §2 y
+ * docs/specs/0003-api-y-sync.md §Sync).
+ *
+ * La forma **no se define acá: se importa del dominio** y el schema sólo la valida. Si el contrato
+ * inventara su propia forma, la terminal y el servidor podrían estar de acuerdo entre ellos y en
+ * desacuerdo con el libro, que es el peor de los mundos posibles: los eventos entrarían al libro
+ * local sin pasar por `validarEvento`.
+ *
+ * Qué rechaza, y por qué cada uno rompe algo si pasa:
+ *   - Un **`tipo`** que el dominio no conoce: el servidor no puede proyectar lo que no entiende.
+ *   - **`secuencia`** que no es un entero positivo: es el orden del libro y la clave de idempotencia.
+ *   - **`schemaVersion`** que no es un entero positivo, o mayor a la que este código sabe leer:
+ *     aceptarla en silencio sería aplicar un cuerpo con las reglas de otra versión (§schemaVersion).
+ *   - Un **envoltorio** sin `tenantId`, `terminalId` u `ocurridoEn`: sin ellos el evento no
+ *     pertenece a ninguna terminal ni tiene lugar en el tiempo.
+ *
+ * `sobreventa_detectada` sí está, porque el dominio ya lo tiene (T6, odd/tasks/altoke-m2-sync.md):
+ * es el evento con el que el servidor cuenta que dos terminales vendieron la última unidad (0001 §3,
+ * 0003 §Sobreventa). El contrato lo valida con las mismas reglas que `validarEvento`, incluido el
+ * stock proyectado negativo; quién puede escribirlo no es asunto del schema sino del borde que
+ * empuja (`validarEventoDeCliente` en el API). Reconocerlo al leer es lo que deja que la terminal
+ * lo aplique y muestre la alerta.
+ */
+
+import { z } from 'zod'
+import { MEDIOS_PAGO, SCHEMA_VERSION_ACTUAL } from '@altoke/domain'
+import { centavos, entero, enteroPositivo, texto } from './campos.ts'
+import { parsear } from './parseo.ts'
+import type { Resultado } from './errores.ts'
+
+/**
+ * La versión de schema que este código sabe leer: en M2 sólo existe v1 (0003 §schemaVersion).
+ *
+ * **No se escribe acá**: sale de `SCHEMA_VERSION_ACTUAL` del dominio, que es donde vive la versión
+ * con la que se escribe el libro, y la cadena de migraciones migra hasta la misma. Un contrato con
+ * su propio número aceptaría en el cable una versión que la cadena no sabe leer, o rechazaría una
+ * que sí: subir la versión es un solo edit (T7 de odd/tasks/altoke-m2-sync.md).
+ */
+export const SCHEMA_VERSION_SOPORTADA = SCHEMA_VERSION_ACTUAL
+
+/**
+ * Versión declarada por el evento.
+ *
+ * Positiva e igual o menor a la soportada, nunca "la que venga": la cadena de migraciones
+ * (`vN → vN+1`) es lo que permite leer una versión vieja, y migrar una versión **futura** no está
+ * definido. El `pipe` final es la prueba de tipos de lo que el `refine` ya garantiza en runtime:
+ * después del filtro, la única versión posible es la soportada.
+ */
+const esquemaSchemaVersion = enteroPositivo('schemaVersion')
+  .refine((version) => version <= SCHEMA_VERSION_SOPORTADA, {
+    error: `schemaVersion no soportada: esta versión del código entiende hasta v${SCHEMA_VERSION_SOPORTADA}.`,
+  })
+  .pipe(z.literal(SCHEMA_VERSION_SOPORTADA))
+
+/** Lo que todo evento lleva, sin importar su tipo. */
+const ENVOLTORIO = {
+  /** Opaco para el dominio: sólo tiene que ser único y no vacío. */
+  id: texto('id'),
+  tenantId: texto('tenantId'),
+  terminalId: texto('terminalId'),
+  secuencia: enteroPositivo('secuencia'),
+  ocurridoEn: z.iso.datetime({ error: 'ocurridoEn debe ser una fecha ISO-8601.' }),
+  schemaVersion: esquemaSchemaVersion,
+}
+
+/** Un mensaje que nombra el tipo que llegó, en vez de la lista de los que zod esperaba. */
+function tipoDesconocido(issue: { readonly input?: unknown }): string {
+  const tipo = (issue.input as { readonly tipo?: unknown } | undefined)?.tipo
+  return `Tipo de evento desconocido: ${String(tipo)}`
+}
+
+/**
+ * La unión del dominio, tipo por tipo. Los cuatro campos propios de cada evento son los mismos
+ * (y con las mismas reglas) que exige `validarEvento`: el servidor no puede aceptar algo que la
+ * terminal rechazaría, ni al revés.
+ */
+export const esquemaEvento = z.discriminatedUnion(
+  'tipo',
+  [
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('turno_abierto'),
+      turnoId: texto('turnoId'),
+      fondoCentavos: centavos('fondoCentavos'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('venta_iniciada'),
+      ventaId: texto('ventaId'),
+      turnoId: texto('turnoId'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('item_agregado'),
+      ventaId: texto('ventaId'),
+      sku: texto('sku'),
+      cantidad: enteroPositivo('cantidad'),
+      precioUnitarioCentavos: centavos('precioUnitarioCentavos'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('item_quitado'),
+      ventaId: texto('ventaId'),
+      sku: texto('sku'),
+      cantidad: enteroPositivo('cantidad'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('item_devuelto'),
+      ventaId: texto('ventaId'),
+      sku: texto('sku'),
+      cantidad: enteroPositivo('cantidad'),
+      motivo: texto('motivo'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('descuento'),
+      ventaId: texto('ventaId'),
+      montoCentavos: centavos('montoCentavos'),
+      motivo: texto('motivo'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('pago_registrado'),
+      ventaId: texto('ventaId'),
+      medio: z.enum(MEDIOS_PAGO, {
+        error: `medio debe ser uno de: ${MEDIOS_PAGO.join(', ')}.`,
+      }),
+      montoCentavos: centavos('montoCentavos'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('venta_confirmada'),
+      ventaId: texto('ventaId'),
+      totalCentavos: centavos('totalCentavos'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('venta_anulada'),
+      ventaId: texto('ventaId'),
+      motivo: texto('motivo'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('ajuste_stock'),
+      sku: texto('sku'),
+      // Puede ser negativo (merma, corrección) pero nunca fraccionario: el stock es de unidades.
+      delta: entero('delta'),
+      causa: texto('causa'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('turno_cerrado'),
+      turnoId: texto('turnoId'),
+      declaradoCentavos: centavos('declaradoCentavos'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('sobreventa_detectada'),
+      ventaId: texto('ventaId'),
+      sku: texto('sku'),
+      cantidad: enteroPositivo('cantidad'),
+      // Negativo por definición: una sobreventa deja el stock bajo cero. Es el mismo límite que
+      // `validarEvento`, para que el servidor no acepte lo que la terminal rechazaría.
+      stockProyectado: entero('stockProyectado').refine((valor) => valor < 0, {
+        error: 'stockProyectado debe ser negativo: una sobreventa deja el stock bajo cero.',
+      }),
+    }),
+  ],
+  { error: tipoDesconocido },
+)
+
+/**
+ * El evento tal como lo devuelve el parseo: la misma forma que `Evento` del dominio.
+ *
+ * No se deriva de `Evento` por decreto: `eventos.test.ts` comprueba en los dos sentidos que la
+ * forma coincide (el dominio entra, y lo parseado se asigna a `Evento[]` sin castear). Si la unión
+ * del dominio cambia y el schema no, el typecheck del test falla antes que cualquier runtime.
+ */
+export type EventoSync = z.infer<typeof esquemaEvento>
+
+export function parsearEvento(valor: unknown): Resultado<EventoSync> {
+  return parsear(esquemaEvento, valor)
+}

@@ -4,17 +4,75 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import userEvent from '@testing-library/user-event'
 import { contraste } from '@altoke/ui'
 import { crearStoreEnMemoria } from '@altoke/store'
+import type { PosStore } from '@altoke/store'
+import type { Evento } from '@altoke/domain'
 import { App } from './App'
 import { CATALOGO } from './catalogo'
 import { formatearCentavos } from './formato'
 import { buttonVariants } from './components/ui/button'
+import type { Membresia, OpcionesSincronizacionApp, Rol, SesionActiva } from './sesion'
+import {
+  MEMBRESIA_DE_PRUEBA,
+  SESION_DE_PRUEBA,
+  USUARIO_DE_PRUEBA,
+  almacenDeSesionEnMemoria,
+  clienteDeSesionDePrueba,
+} from './sesion/dobles'
+import { acusesEnMemoria, transporteDePrueba } from './sync/dobles'
+import type { TransporteDeSync } from './sync'
 import tailwindCss from './styles/tailwind.css?raw'
+import './styles/pos.css'
 import tokensCss from '../../../packages/ui/src/tokens.css?raw'
 
 const alfajor = CATALOGO.find((producto) => producto.sku === 'alfajor')
 
 if (alfajor === undefined) {
   throw new Error('El catálogo de prueba necesita un alfajor')
+}
+
+/**
+ * Dependencias del sync para los tests: transporte en memoria y acuses en memoria. Sin esto cada
+ * caso intentaría hablar con la API real y con IndexedDB, que no son parte de lo que prueba.
+ */
+function syncDePrueba(extra: OpcionesSincronizacionApp = {}): OpcionesSincronizacionApp {
+  return {
+    transporte: transporteDePrueba(),
+    acuses: acusesEnMemoria().acuses,
+    intentos: 1,
+    intervaloMs: 60_000,
+    ...extra,
+  }
+}
+
+interface OpcionesDeRender {
+  readonly store?: PosStore
+  readonly rol?: Rol
+  readonly sync?: OpcionesSincronizacionApp
+}
+
+/** El POS con una sesión ya resuelta: los tests no dependen de un servidor ni de una base real. */
+function renderApp({ store, rol, sync }: OpcionesDeRender = {}): ReturnType<typeof render> {
+  const sesion: SesionActiva = { ...SESION_DE_PRUEBA, rol: rol ?? 'owner' }
+
+  return render(
+    <App store={store ?? crearStoreEnMemoria()} sesionInicial={sesion} sync={sync ?? syncDePrueba()} />,
+  )
+}
+
+/** Un evento válido del libro de esta terminal: sirve para que el sync tenga algo pendiente. */
+function eventoDeAjuste(secuencia: number): Evento {
+  return {
+    id: `evt-${secuencia}`,
+    tenantId: SESION_DE_PRUEBA.tenant.id,
+    terminalId: 'terminal-1',
+    secuencia,
+    ocurridoEn: '2026-11-23T10:00:00.000Z',
+    schemaVersion: 1,
+    tipo: 'ajuste_stock',
+    sku: 'alfajor',
+    delta: 1,
+    causa: 'compra',
+  }
 }
 
 afterEach(() => {
@@ -52,6 +110,22 @@ async function abrirCaja(user: ReturnType<typeof userEvent.setup>): Promise<void
   await screen.findByText(/turno abierto/i)
 }
 
+/**
+ * Margen para las esperas que dependen de un trabajo asíncrono de la app.
+ *
+ * Cobrar y cerrar el turno escriben el libro y **después** releen la proyección para pintarla
+ * (`setEstado(await caja.estado())` en `App.tsx`), con un `await` en el medio: el botón vuelve y
+ * la pantalla todavía muestra el estado anterior por un instante —y, cerrando, hay un render
+ * intermedio real, con el panel ya cerrado y el turno todavía abierto—. RTL espera 1 s por
+ * defecto, y con la suite entera compitiendo por CPU esa ventana no alcanzaba: el cierre fallaba
+ * en una de cada tantas corridas completas con «Unable to find an element with the text: /turno
+ * cerrado/i».
+ *
+ * El margen es para el reloj de la máquina, no para la app: si el estado no llega, el test sigue
+ * fallando. Se usa en las esperas que dependen del estado conciliado, no en cada `await`.
+ */
+const ESPERA_DE_ESTADO = { timeout: 5_000 }
+
 /** La teja del alfajor: el botón de la grilla, no los +/- de la venta. */
 function tejaDeAlfajor(): HTMLElement {
   return screen.getByRole('button', { name: /^Alfajor triple/ })
@@ -59,7 +133,7 @@ function tejaDeAlfajor(): HTMLElement {
 
 describe('POS — abrir la caja', () => {
   it('arranca pidiendo el fondo del turno antes que nada', async () => {
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
 
     const fondo = await screen.findByLabelText('Fondo inicial en pesos')
 
@@ -70,7 +144,7 @@ describe('POS — abrir la caja', () => {
 
   it('abre el turno con el fondo que escribe el cajero', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
 
     const fondo = await screen.findByLabelText('Fondo inicial en pesos')
     await user.clear(fondo)
@@ -88,7 +162,7 @@ describe('POS — cobrar e imprimir', () => {
     const user = userEvent.setup()
     const imprimir = vi.spyOn(window, 'print').mockImplementation(() => {})
 
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
     await abrirCaja(user)
 
     const tejaAlfajor = tejaDeAlfajor()
@@ -114,8 +188,8 @@ describe('POS — cobrar e imprimir', () => {
 
     await waitFor(() => {
       expect(tejaDeAlfajor().textContent).toContain('Stock: 22')
-    })
-    expect(screen.getByTestId('total-turno').textContent).toBe(totalEsperado)
+      expect(screen.getByTestId('total-turno').textContent).toBe(totalEsperado)
+    }, ESPERA_DE_ESTADO)
 
     await user.click(screen.getByRole('button', { name: 'Imprimir ticket' }))
     expect(imprimir).toHaveBeenCalledTimes(1)
@@ -123,7 +197,7 @@ describe('POS — cobrar e imprimir', () => {
 
   it('Nueva venta vuelve a la bandeja y no deja el ticket en pantalla', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
     await abrirCaja(user)
 
     await user.click(tejaDeAlfajor())
@@ -143,7 +217,7 @@ describe('POS — cobrar e imprimir', () => {
 
   it('un pago insuficiente muestra el error y no confirma nada', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
     await abrirCaja(user)
 
     await user.click(tejaDeAlfajor())
@@ -167,7 +241,7 @@ describe('POS — cobrar e imprimir', () => {
 
   it('cobra con tarjeta manual sin pedir efectivo ni dar cambio', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
     await abrirCaja(user)
 
     await user.click(tejaDeAlfajor())
@@ -184,7 +258,7 @@ describe('POS — cobrar e imprimir', () => {
 describe('POS — cerrar la caja', () => {
   it('muestra el arqueo del cajón y cierra el turno', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
     await abrirCaja(user)
 
     await user.click(screen.getByRole('button', { name: 'Cerrar caja' }))
@@ -202,8 +276,14 @@ describe('POS — cerrar la caja', () => {
 
     await user.click(screen.getByRole('button', { name: 'Confirmar cierre' }))
 
-    expect(await screen.findByText(/turno cerrado/i)).toBeDefined()
-    const ultimoCierre = await screen.findByRole('region', { name: 'Último cierre' })
+    // El cierre escribe el evento y relee el libro: el panel se va antes de que la pantalla muestre
+    // el turno cerrado, así que se espera el estado conciliado y no el primer render.
+    expect(await screen.findByText(/turno cerrado/i, undefined, ESPERA_DE_ESTADO)).toBeDefined()
+    const ultimoCierre = await screen.findByRole(
+      'region',
+      { name: 'Último cierre' },
+      ESPERA_DE_ESTADO,
+    )
     expect(ultimoCierre.textContent).toContain('cuadrado')
     expect(screen.getByRole('button', { name: 'Abrir caja' })).toBeDefined()
   })
@@ -212,7 +292,7 @@ describe('POS — cerrar la caja', () => {
 describe('POS — marca del tenant', () => {
   it('aplica el primario en vivo y lo persiste para el tenant', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
 
     await user.click(await screen.findByRole('button', { name: 'Marca' }))
     const primario = await screen.findByLabelText('Color primario')
@@ -225,7 +305,7 @@ describe('POS — marca del tenant', () => {
 
   it('el logo del tenant se ve en el POS y en el ticket', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
 
     await user.click(await screen.findByRole('button', { name: 'Marca' }))
     const logo = await screen.findByLabelText(/logo/i)
@@ -241,7 +321,7 @@ describe('POS — marca del tenant', () => {
 
   it('rechaza un par texto/fondo ilegible y deja aplicada la marca anterior', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
 
     const fondoAplicado = document.documentElement.style.getPropertyValue('--brand-surface')
 
@@ -261,7 +341,7 @@ describe('POS — marca del tenant', () => {
 
   it('rechaza una marca oscura porque los contenedores del tema claro no la siguen', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
 
     await user.click(await screen.findByRole('button', { name: 'Marca' }))
     const fondo = await screen.findByLabelText('Color de fondo')
@@ -284,7 +364,7 @@ describe('POS — marca del tenant', () => {
 
   it('al vaciar el campo del logo la imagen del encabezado se va con él', async () => {
     const user = userEvent.setup()
-    render(<App store={crearStoreEnMemoria()} />)
+    renderApp()
 
     await user.click(await screen.findByRole('button', { name: 'Marca' }))
     const logo = await screen.findByLabelText('URL del logo')
@@ -314,7 +394,7 @@ async function errorConLaHojaAbierta(): Promise<ReturnType<typeof userEvent.setu
   const user = userEvent.setup()
   const store = crearStoreEnMemoria()
 
-  render(<App store={store} />)
+  renderApp({ store })
   await abrirCaja(user)
   await user.click(tejaDeAlfajor())
   await user.click(screen.getByRole('button', { name: 'Cobrar' }))
@@ -378,5 +458,242 @@ describe('POS — botón compartido', () => {
     expect(tema.has('--color-ink')).toBe(false)
     expect(secundaria).not.toMatch(/\btext-ink\b/)
     expect(secundaria).toContain('text-foreground')
+  })
+})
+
+describe('Sesión — arranque y cierre', () => {
+  it('sin una sesión guardada arranca en el login y no muestra el POS', async () => {
+    const { almacen } = almacenDeSesionEnMemoria()
+
+    render(
+      <App
+        store={crearStoreEnMemoria()}
+        sesion={{ almacen, cliente: clienteDeSesionDePrueba(), purgar: async () => {} }}
+        sync={syncDePrueba()}
+      />,
+    )
+
+    expect(await screen.findByRole('heading', { name: /entrá a tu kiosco/i })).toBeDefined()
+    expect(screen.queryByRole('region', { name: 'Apertura de caja' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Productos' })).toBeNull()
+  })
+
+  it('un token que el servidor rechaza vuelve al login y borra la sesión, sin reintentar', async () => {
+    const { almacen, estado } = almacenDeSesionEnMemoria(SESION_DE_PRUEBA)
+    const cliente = clienteDeSesionDePrueba({
+      yo: () => ({ ok: false, error: { motivo: 'no_autenticado', mensaje: 'Sesión vencida.' } }),
+    })
+
+    render(
+      <App
+        store={crearStoreEnMemoria()}
+        sesion={{ almacen, cliente, purgar: async () => {} }}
+        sync={syncDePrueba()}
+      />,
+    )
+
+    expect(await screen.findByRole('heading', { name: /entrá a tu kiosco/i })).toBeDefined()
+    expect(estado.borrados).toBe(1)
+    expect(estado.valor).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Apertura de caja' })).toBeNull()
+  })
+
+  it('sin red al arrancar abre el POS con la última sesión confirmada', async () => {
+    const { almacen } = almacenDeSesionEnMemoria(SESION_DE_PRUEBA)
+    const cliente = clienteDeSesionDePrueba({
+      yo: () => ({ ok: false, error: { motivo: 'red', mensaje: 'sin red' } }),
+    })
+
+    render(
+      <App
+        store={crearStoreEnMemoria()}
+        sesion={{ almacen, cliente, purgar: async () => {} }}
+        sync={syncDePrueba()}
+      />,
+    )
+
+    // La red no decide una venta: el cajero entra con lo último confirmado y cobra igual.
+    expect(await screen.findByRole('button', { name: 'Abrir caja' })).toBeDefined()
+    expect(screen.queryByRole('heading', { name: /entrá a tu kiosco/i })).toBeNull()
+  })
+
+  it('con más de una membresía pide elegir el kiosco y no persiste uno adivinado', async () => {
+    const user = userEvent.setup()
+    const { almacen, estado } = almacenDeSesionEnMemoria()
+    const segundo: Membresia = {
+      tenantId: 'kiosco-2',
+      slug: 'kiosco-2',
+      nombre: 'AlToke · Kiosco dos',
+      rol: 'cajero',
+    }
+    const cliente = clienteDeSesionDePrueba({
+      yo: () => ({
+        ok: true,
+        dato: {
+          usuario: USUARIO_DE_PRUEBA,
+          membresias: [MEMBRESIA_DE_PRUEBA, segundo],
+        },
+      }),
+    })
+
+    render(
+      <App
+        store={crearStoreEnMemoria()}
+        sesion={{ almacen, cliente, purgar: async () => {} }}
+        sync={syncDePrueba()}
+      />,
+    )
+
+    await user.type(await screen.findByLabelText('Email'), 'duena@kiosco.test')
+    await user.type(screen.getByLabelText('Contraseña'), 'secreto123')
+    await user.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    expect(
+      await screen.findByRole('heading', { name: /en qué kiosco vas a trabajar/i }),
+    ).toBeDefined()
+    // El login trae un tenant, pero el cliente no lo da por elegido: no hay sesión persistida.
+    expect(estado.valor).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Apertura de caja' })).toBeNull()
+
+    await user.click(screen.getByRole('button', { name: /Kiosco dos/ }))
+
+    expect(await screen.findByRole('button', { name: 'Abrir caja' })).toBeDefined()
+    expect(estado.valor?.tenant.id).toBe('kiosco-2')
+    expect(estado.valor?.rol).toBe('cajero')
+  })
+
+  it('cerrar sesión purga la base del tenant y vuelve al login', async () => {
+    const user = userEvent.setup()
+    const { almacen } = almacenDeSesionEnMemoria(SESION_DE_PRUEBA)
+    const purgar = vi.fn(async () => {})
+
+    render(
+      <App
+        store={crearStoreEnMemoria()}
+        sesionInicial={SESION_DE_PRUEBA}
+        sesion={{ almacen, cliente: clienteDeSesionDePrueba(), purgar }}
+        sync={syncDePrueba()}
+      />,
+    )
+
+    await abrirCaja(user)
+    await user.click(screen.getByRole('button', { name: 'Salir' }))
+
+    await waitFor(() => expect(purgar).toHaveBeenCalledWith(SESION_DE_PRUEBA.tenant.id))
+    expect(await screen.findByRole('heading', { name: /entrá a tu kiosco/i })).toBeDefined()
+    expect(screen.queryByRole('region', { name: 'Apertura de caja' })).toBeNull()
+  })
+})
+
+describe('POS — gating por rol', () => {
+  it('solo_lectura no ve COBRAR, ni el cierre, ni la marca', async () => {
+    const user = userEvent.setup()
+    renderApp({ rol: 'solo_lectura' })
+    await abrirCaja(user)
+    await user.click(tejaDeAlfajor())
+
+    expect(screen.queryByRole('button', { name: 'Cobrar' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Cerrar caja' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Marca' })).toBeNull()
+  })
+
+  it('cajero cobra y cierra, pero no administra la marca', async () => {
+    const user = userEvent.setup()
+    renderApp({ rol: 'cajero' })
+    await abrirCaja(user)
+
+    expect(screen.getByRole('button', { name: 'Cobrar' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Cerrar caja' })).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'Marca' })).toBeNull()
+  })
+
+  it('owner ve las tres acciones del POS', async () => {
+    const user = userEvent.setup()
+    renderApp()
+    await abrirCaja(user)
+
+    expect(screen.getByRole('button', { name: 'Cobrar' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Cerrar caja' })).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Marca' })).toBeDefined()
+  })
+})
+
+describe('POS — estado del sync', () => {
+  it('muestra pendiente con el conteo cuando el transporte no responde', async () => {
+    const store = crearStoreEnMemoria()
+    await store.append([eventoDeAjuste(1), eventoDeAjuste(2)])
+
+    const transporteQueNoResponde: TransporteDeSync = {
+      async empujar() {
+        throw new Error('sin red')
+      },
+      async traer() {
+        throw new Error('sin red')
+      },
+    }
+
+    renderApp({ store, sync: syncDePrueba({ transporte: transporteQueNoResponde }) })
+
+    const chip = await screen.findByTestId('sync')
+    await waitFor(() => {
+      expect(chip.textContent?.toLowerCase()).toContain('pendiente')
+      expect(chip.textContent).toContain('2')
+    })
+  })
+
+  it('empuja la venta después de confirmarla, sin esperar la red en el cobro', async () => {
+    const user = userEvent.setup()
+    const transporte = transporteDePrueba()
+
+    renderApp({ sync: syncDePrueba({ transporte }) })
+    await abrirCaja(user)
+    await user.click(tejaDeAlfajor())
+    await user.click(screen.getByRole('button', { name: 'Cobrar' }))
+    await user.click(screen.getByRole('button', { name: 'Cobrar y sacar ticket' }))
+
+    expect(await screen.findByRole('region', { name: 'Venta cobrada' })).toBeDefined()
+    await waitFor(() => {
+      expect(
+        transporte.empujes.some((solicitud) =>
+          solicitud.eventos.some((evento) => evento.tipo === 'venta_confirmada'),
+        ),
+      ).toBe(true)
+    }, ESPERA_DE_ESTADO)
+  })
+
+  it('muestra la sobreventa proyectada como aviso visible y no bloqueante', async () => {
+    const sobreventa: Evento = {
+      id: 'evt-servidor-1',
+      tenantId: SESION_DE_PRUEBA.tenant.id,
+      terminalId: 'servidor',
+      secuencia: 1,
+      ocurridoEn: '2026-11-23T10:05:00.000Z',
+      schemaVersion: 1,
+      tipo: 'sobreventa_detectada',
+      ventaId: 'venta-1',
+      sku: 'alfajor',
+      cantidad: 2,
+      stockProyectado: -1,
+    }
+    const transporte = transporteDePrueba({
+      traer: () => ({
+        ok: true,
+        dato: {
+          eventos: [sobreventa],
+          acuse: { terminalId: 'terminal-1', ultimaSecuencia: 0 },
+          hayMas: false,
+          siguienteDesde: null,
+        },
+      }),
+    })
+
+    renderApp({ sync: syncDePrueba({ transporte }) })
+
+    const aviso = await screen.findByRole('status', { name: 'Sobreventas detectadas' })
+    expect(aviso.textContent).toContain('alfajor')
+    expect(aviso.textContent).toContain('-1')
+
+    // El aviso no tapa ni deshabilita la caja: la mercadería salió, el mostrador sigue abierto.
+    expect(screen.getByRole('button', { name: 'Abrir caja' })).toBeDefined()
   })
 })

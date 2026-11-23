@@ -6,5 +6,11 @@
   "description": "Schemas zod compartidos entre web y api.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@altoke/domain": "workspace:*",
+    "zod": "^4.6.7"
+  }
 }
