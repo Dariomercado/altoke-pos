@@ -10,6 +10,10 @@ describe('GET /salud', () => {
           consultas.push(consulta)
           return { rows: [{ '?column?': 1 }] }
         },
+        connect: async () => {
+          throw new Error('GET /salud no necesita una conexión dedicada')
+        },
+        end: async () => {},
       },
     })
 
@@ -26,6 +30,10 @@ describe('GET /salud', () => {
         query: async () => {
           throw new Error('connect ECONNREFUSED 127.0.0.1:5435')
         },
+        connect: async () => {
+          throw new Error('GET /salud no necesita una conexión dedicada')
+        },
+        end: async () => {},
       },
     })
 

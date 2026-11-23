@@ -63,10 +63,84 @@ local**: en el VPS se rota al crear la base.
 
 ## Endpoints
 
+### Forma única de error
+
+Todo error, incluido un 500 y una ruta inexistente, responde con la forma de `0003` §Errores:
+
+```json
+{ "error": { "code": "validacion", "mensaje": "El email no es válido.", "detalle": { "campo": "email" } } }
+```
+
+| `code`               | HTTP | Cuándo                                                        |
+| -------------------- | ---- | ------------------------------------------------------------- |
+| `no_autenticado`     | 401  | sin token, token con forma inválida, vencido, revocado o credenciales incorrectas |
+| `sin_permiso`        | 403  | el usuario no es miembro de ese tenant, o su rol no alcanza   |
+| `tenant_desconocido` | 404  | `X-Tenant` o `:slug` no existe                                |
+| `validacion`         | 400  | input inválido, email/slug ya tomados, tenant sin elegir, JSON malformado |
+| `conflicto_de_secuencia` | 409 | lo usa el sync (T5), todavía no hay ruta                     |
+| `demasiados_intentos`| 429  | reservado; M2 no limita intentos                              |
+| `error_interno`      | 500  | falla del servidor: el detalle queda en el log, nunca en la respuesta |
+| `no_encontrado`      | 404  | ruta inexistente, para no romper la forma única               |
+
+### Salud
+
 `GET /salud` → `{ ok: true, db: "up" | "down" }`, siempre 200.
 
 Comprueba el pool con `SELECT 1`. Si Postgres no contesta, responde `db: "down"` y **no** revienta:
 un health check que miente o que devuelve 500 cuando la base está caída es peor que ninguno.
+
+### Auth (`0003` §Auth)
+
+| Método   | Ruta                                   | Quién         | Respuesta |
+| -------- | -------------------------------------- | ------------- | --------- |
+| `POST`   | `/auth/registro`                       | público       | 201: `{ token, expiraEn, usuario, tenant, rol, sucursal }` |
+| `POST`   | `/auth/sesion`                         | público       | 200: `{ token, expiraEn, usuario, tenant, rol }` |
+| `GET`    | `/auth/yo`                             | autenticado   | 200: `{ usuario, membresias: [{ tenantId, slug, nombre, rol }] }` |
+| `DELETE` | `/auth/sesion`                         | autenticado   | 204 |
+| `POST`   | `/tenants/:slug/terminales`            | `owner`/`admin` | 201: `{ id, nombre, tenantId, sucursal }` |
+| `POST`   | `/tenants/:slug/usuarios/:id/password` | `owner`/`admin` | 200: `{ ok: true }` |
+
+- **Transporte:** `Authorization: Bearer <token>`. El token son 32 bytes base64url, se muestra
+  **una sola vez** y el servidor guarda sólo su SHA-256 en `sesiones`, con vida de 12 h.
+- **Contraseñas:** `scrypt` de `node:crypto` (N=2^14, r=8, p=1, sal de 16 bytes), guardadas como
+  `scrypt$N$r$p$sal$hash`. Los parámetros viajan con el hash: subirlos es una migración, no una
+  reescritura.
+- **Email desconocido y contraseña incorrecta** son indistinguibles: mismo `no_autenticado`, mismo
+  mensaje y el mismo costo de `scrypt` (sin usuario se deriva contra un hash señuelo).
+- **Registro atómico:** usuario + tenant + membresía `owner` + sucursal `Principal` + sesión en una
+  transacción. Un email o slug tomado es `validacion` con `detalle.campo` y no deja nada a medias.
+- **`X-Tenant`:** el slug (o el id) del tenant con el que se atiende el pedido. Con una sola
+  membresía se puede omitir; con varias es obligatorio, y el servidor no elige al azar.
+- **Rol:** se lee de `membresias` para el tenant elegido. Un tenant ajeno es `sin_permiso`, nunca un
+  resultado vacío que parezca éxito.
+
+### Decisiones que `0003` §Auth deja abiertas
+
+El spec fija la forma y los códigos; estas son las elecciones de T3 donde no dice nada:
+
+- **Duplicados:** email o slug ya tomados → `400 validacion` con `detalle.campo` (`email`,
+  `tenant.slug`). No se usa 409: el cliente lo resuelve corrigiendo el campo.
+- **Normalización:** email y slug se guardan en minúsculas; un email con mayúsculas entra a la misma
+  cuenta. El slug acepta minúsculas, números y guiones (2–40).
+- **Login con varios tenants:** la sesión guarda el tenant más antiguo como predeterminado y
+  `X-Tenant` elige otro después. `GET /auth/yo` devuelve todas las membresías para que el POS
+  muestre el selector.
+- **Terminales:** `0003` §Esquema no tiene tabla `terminales`, así que el endpoint devuelve el id
+  (uuid) que la terminal usa como `terminalId` en el sync; todavía no persiste nada más que la
+  sucursal. `sucursal` llega como nombre y se reusa o se crea dentro del tenant.
+- **Reset de contraseña:** lo hace `owner`/`admin` sobre un miembro del tenant (no hay email
+  transaccional en M2). No revoca las sesiones abiertas de ese usuario; queda para cuando haya
+  auditoría de sesiones.
+- **`membresias` y RLS:** `GET /auth/yo` y la elección de tenant necesitan leer las membresías
+  propias antes de saber cuál es el tenant. La migración `0003_membresias_propias.sql` agrega una
+  política `FOR SELECT` sobre `usuario_id = app.usuario_id`, seteado por el servidor desde la sesión.
+  El aislamiento por tenant sigue intacto y escribir una membresía sigue exigiendo `app.tenant_id`.
+
+### Aislamiento por tenant en las consultas
+
+Toda consulta autenticada corre en una conexión dedicada con `BEGIN` + `SELECT set_config('app.tenant_id', $1, true)`
+(la forma parametrizable de `SET LOCAL`) + `COMMIT/ROLLBACK` + `release()`. El setting muere con la
+transacción: una conexión devuelta al pool nunca arrastra el tenant de un pedido anterior.
 
 ## Migraciones
 
@@ -103,5 +177,11 @@ DATABASE_URL=postgres://altoke_app:altoke_app@localhost:5435/altoke \
 MIGRATIONS_DATABASE_URL=postgres://altoke:altoke@localhost:5435/altoke pnpm test
 ```
 
-Los tests del esquema migran como dueño y los de RLS conectan como `altoke_app`: sin las dos
-variables no hay forma de probar que el aislamiento por tenant se aplica de verdad.
+Los tests del esquema migran como dueño y los de RLS y auth conectan como `altoke_app`: sin las dos
+variables no hay forma de probar que el aislamiento por tenant se aplica de verdad. Los de auth
+cubren el alta atómica, que el token y la contraseña no queden en claro, token vencido, token
+revocado, `solo_lectura` sin permiso y un token del tenant A pidiendo el tenant B.
+
+Los tests que no necesitan base usan un doble (`src/dobles.ts`) que devuelve filas guionadas y
+registra cada consulta con su conexión: así se verifica que `BEGIN`, `set_config`, `COMMIT` y
+`release()` ocurren en la misma conexión.

@@ -27,3 +27,10 @@ export type FuenteDeConexiones = Consultable & {
 export function crearPool(databaseUrl: string): Pool {
   return new Pool({ connectionString: databaseUrl })
 }
+
+/** La primera fila de un `RETURNING` que no puede volver vacío; si vuelve, es un error del código. */
+export function primeraFila(resultado: ResultadoConsulta): Record<string, unknown> {
+  const fila = resultado.rows[0]
+  if (fila === undefined) throw new Error('la consulta no devolvió la fila esperada')
+  return fila
+}
