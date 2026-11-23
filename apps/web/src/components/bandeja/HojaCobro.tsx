@@ -44,6 +44,11 @@ export interface HojaCobroProps {
   readonly totales: TotalesVenta
   readonly efectivoPesos: string
   readonly esTarjeta: boolean
+  /**
+   * Error de la última acción de la caja. Con la hoja abierta el aviso se pinta acá adentro: el que
+   * la pantalla de venta dibuja quedaría debajo del scrim y el cajero no leería nada.
+   */
+  readonly error: string | null
   readonly onCambiarEfectivo: (pesos: string) => void
   readonly onElegirTarjeta: (esTarjeta: boolean) => void
   readonly onConfirmar: () => void
@@ -68,6 +73,7 @@ export function HojaCobro({
   totales,
   efectivoPesos,
   esTarjeta,
+  error,
   onCambiarEfectivo,
   onElegirTarjeta,
   onConfirmar,
@@ -274,25 +280,41 @@ export function HojaCobro({
           </div>
         </div>
 
-        <div className="flex items-center gap-[var(--space-md)] px-[var(--space-lg)] pb-[var(--space-lg)] pt-[var(--space-md)]">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCerrar}
-            className="min-h-[4rem] rounded-lg px-[var(--space-lg)] text-[0.8125rem] font-semibold transition-colors duration-150 ease-out motion-reduce:transition-none"
-          >
-            Volver
-          </Button>
+        <div className="grid gap-[var(--space-md)] px-[var(--space-lg)] pb-[var(--space-lg)] pt-[var(--space-md)]">
+          {/*
+           * El error de la caja va justo arriba de confirmar y con los mismos tokens que el aviso
+           * de efectivo insuficiente. Sólo con la hoja abierta: cerrada la pinta la página, y dos
+           * nodos `role=alert` con el mismo texto se anunciarían dos veces.
+           */}
+          {abierta && error !== null && (
+            <p
+              role="alert"
+              className="rounded-md border border-destructive bg-danger-soft px-[var(--space-sm)] py-[var(--space-sm)] text-xs leading-4 text-danger-soft-foreground"
+            >
+              {error}
+            </p>
+          )}
 
-          <Button
-            type="button"
-            disabled={!puedeConfirmar}
-            onClick={onConfirmar}
-            className="flex min-h-[4rem] flex-1 items-center justify-center gap-[var(--space-sm)] rounded-lg bg-primary px-[var(--space-lg)] text-sm font-bold tracking-[0.04em] text-primary-foreground transition-transform duration-150 ease-out active:scale-[0.985] disabled:bg-sunken-deep disabled:text-muted-foreground disabled:opacity-100 motion-reduce:transition-none motion-reduce:active:scale-100"
-          >
-            <Check aria-hidden="true" className="size-[1.125rem]" />
-            Cobrar y sacar ticket
-          </Button>
+          <div className="flex items-center gap-[var(--space-md)]">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCerrar}
+              className="min-h-[4rem] rounded-lg px-[var(--space-lg)] text-[0.8125rem] font-semibold transition-colors duration-150 ease-out motion-reduce:transition-none"
+            >
+              Volver
+            </Button>
+
+            <Button
+              type="button"
+              disabled={!puedeConfirmar}
+              onClick={onConfirmar}
+              className="flex min-h-[4rem] flex-1 items-center justify-center gap-[var(--space-sm)] rounded-lg bg-primary px-[var(--space-lg)] text-sm font-bold tracking-[0.04em] text-primary-foreground transition-transform duration-150 ease-out active:scale-[0.985] disabled:bg-sunken-deep disabled:text-muted-foreground disabled:opacity-100 motion-reduce:transition-none motion-reduce:active:scale-100"
+            >
+              <Check aria-hidden="true" className="size-[1.125rem]" />
+              Cobrar y sacar ticket
+            </Button>
+          </div>
         </div>
       </section>
     </>

@@ -202,4 +202,21 @@ describe('cierre de caja — errores de la caja', () => {
 
     expect(screen.getByRole('alert').textContent).toContain('No hay turno abierto para cerrar.')
   })
+
+  it('un error de la caja no apaga Confirmar: reintentar es lo correcto', () => {
+    renderCierre({ conteo: { 5_000: 1 }, error: 'No hay turno abierto para cerrar.' })
+
+    // El arqueo está cuadrado y lo único que falló fue la caja, así que el cajero reintenta con el
+    // mismo botón: el error se lee y el cierre sigue a un toque.
+    expect(confirmar().disabled).toBe(false)
+    expect(screen.getByRole('alert').textContent).toContain('No hay turno abierto para cerrar.')
+  })
+
+  it('lo que bloquea Confirmar es el cajón sin contar, no el error de la caja', () => {
+    renderCierre({ error: 'No hay turno abierto para cerrar.' })
+
+    expect(confirmar().disabled).toBe(true)
+    expect(confirmar().getAttribute('aria-describedby')).toBe('cierre-motivo')
+    expect(screen.getByText(/no cargaste ninguna unidad/i)).toBeDefined()
+  })
 })

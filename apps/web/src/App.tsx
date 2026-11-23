@@ -299,10 +299,10 @@ export function App({ store }: AppProps) {
       />
 
       {/*
-       * Con el cierre abierto el aviso viaja adentro de esa capa: es la única visible, así que
-       * repetirlo arriba dejaría el error tapado o duplicado en el árbol.
+       * Con el cierre o la hoja de cobro abiertos el aviso viaja adentro de esa capa: es la única
+       * visible, así que repetirlo arriba dejaría el error tapado o duplicado en el árbol.
        */}
-      {error !== null && !panelCierre && (
+      {error !== null && !panelCierre && !hojaCobro && (
         <p
           className={
             abierto ? 'pos__error mx-[var(--page-margin)] my-[var(--space-sm)]' : 'pos__error'
@@ -344,6 +344,7 @@ export function App({ store }: AppProps) {
             totales={totales}
             efectivoPesos={efectivoPesos}
             esTarjeta={esTarjeta}
+            error={error}
             onCambiarEfectivo={setEfectivoPesos}
             onElegirTarjeta={setEsTarjeta}
             onConfirmar={cobrar}

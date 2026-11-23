@@ -1,11 +1,15 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { contraste } from '@altoke/ui'
 import { crearStoreEnMemoria } from '@altoke/store'
 import { App } from './App'
 import { CATALOGO } from './catalogo'
 import { formatearCentavos } from './formato'
+import { buttonVariants } from './components/ui/button'
+import tailwindCss from './styles/tailwind.css?raw'
+import tokensCss from '../../../packages/ui/src/tokens.css?raw'
 
 const alfajor = CATALOGO.find((producto) => producto.sku === 'alfajor')
 
@@ -19,6 +23,29 @@ afterEach(() => {
   localStorage.clear()
   document.documentElement.removeAttribute('style')
 })
+
+/** Declaraciones `--nombre: valor;` de un CSS, sin comentarios. La primera aparición gana. */
+function declaraciones(css: string): Map<string, string> {
+  const salida = new Map<string, string>()
+
+  for (const [, nombre, valor] of css
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .matchAll(/(--[a-z0-9-]+)\s*:\s*([^;{}]+);/g)) {
+    if (nombre === undefined || valor === undefined) continue
+    if (!salida.has(nombre)) salida.set(nombre, valor.trim())
+  }
+
+  return salida
+}
+
+const tema = declaraciones(tailwindCss)
+const tokens = declaraciones(tokensCss)
+
+/** Hex de un alias del `@theme` de Tailwind, siguiendo el `var()` que lo apunta al token. */
+function hexDelAlias(alias: string): string | undefined {
+  const referencia = tema.get(alias)?.match(/var\((--[a-z0-9-]+)\)/)?.[1]
+  return referencia === undefined ? undefined : tokens.get(referencia)?.toLowerCase()
+}
 
 async function abrirCaja(user: ReturnType<typeof userEvent.setup>): Promise<void> {
   await user.click(await screen.findByRole('button', { name: 'Abrir caja' }))
@@ -272,5 +299,84 @@ describe('POS — marca del tenant', () => {
     expect(document.querySelectorAll('img')).toHaveLength(0)
     expect(document.documentElement.style.getPropertyValue('--brand-logo')).toBe('')
     expect(localStorage.getItem('altoke:marca:kiosco-1')).not.toContain('logoUrl')
+  })
+})
+
+/**
+ * Deja la hoja de cobro abierta con una venta cargada y purga la base local del tenant
+ * (`0001` §6: otra pestaña la purga al cerrar sesión).
+ *
+ * La pantalla de esta pestaña todavía cree que el turno está abierto, así que confirmar levanta el
+ * error real de la caja («no hay turno abierto»): es el caso en que el aviso no se puede ver si se
+ * pinta debajo del scrim.
+ */
+async function errorConLaHojaAbierta(): Promise<ReturnType<typeof userEvent.setup>> {
+  const user = userEvent.setup()
+  const store = crearStoreEnMemoria()
+
+  render(<App store={store} />)
+  await abrirCaja(user)
+  await user.click(tejaDeAlfajor())
+  await user.click(screen.getByRole('button', { name: 'Cobrar' }))
+
+  await store.limpiar()
+
+  await user.click(screen.getByRole('button', { name: 'Cobrar y sacar ticket' }))
+  await screen.findByRole('alert')
+
+  return user
+}
+
+describe('POS — error de la caja con la hoja de cobro abierta', () => {
+  it('el aviso se lee adentro de la hoja y no se repite en la página', async () => {
+    await errorConLaHojaAbierta()
+
+    const hoja = screen.getByRole('dialog')
+
+    expect(within(hoja).getByRole('alert').textContent).toContain('No hay turno abierto')
+    // La hoja tapa la pantalla de venta: un segundo aviso en la página quedaría debajo del scrim.
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+  })
+
+  it('con la hoja cerrada el aviso sigue en la página, como siempre', async () => {
+    const user = await errorConLaHojaAbierta()
+
+    await user.click(screen.getByRole('button', { name: 'Volver' }))
+
+    const avisos = screen.getAllByRole('alert')
+    expect(avisos).toHaveLength(1)
+    expect(avisos[0]?.textContent).toContain('No hay turno abierto')
+
+    // Ya cerrada, la hoja no guarda su propia copia: el aviso que se lee es el de la página.
+    const hojaCerrada = screen.getByRole('dialog', { hidden: true })
+    expect(within(hojaCerrada).queryByRole('alert', { hidden: true })).toBeNull()
+  })
+})
+
+describe('POS — botón compartido', () => {
+  it('el anillo de foco sale de un token del tema y se lee sobre la tarjeta', () => {
+    const base = buttonVariants()
+
+    // `ring-ring/50` componía la marca al 50% sobre blanco: 2,32:1, debajo del 3:1 de no-texto.
+    // Un anillo translúcido baja el contraste con cualquier marca que elija el tenant.
+    expect(base).not.toMatch(/focus-visible:ring-[a-z-]+\//)
+
+    const anillo = /focus-visible:ring-(?!\[)([a-z-]+)/.exec(base)?.[1]
+    const hexAnillo = hexDelAlias(`--color-${anillo ?? ''}`)
+    const hexTarjeta = hexDelAlias('--color-card')
+
+    expect(anillo, 'el anillo de foco no nombra un color del tema').toBeDefined()
+    expect(hexAnillo, `--color-${anillo ?? ''} no resuelve a un hex de tokens.css`).toBeDefined()
+    expect(hexTarjeta, '--color-card no resuelve a un hex de tokens.css').toBeDefined()
+    expect(contraste(hexAnillo ?? '', hexTarjeta ?? '')).toBeGreaterThanOrEqual(3)
+  })
+
+  it('la variante secondary pinta con la tinta del tema, no con una utilidad inexistente', () => {
+    const secundaria = buttonVariants({ variant: 'secondary' })
+
+    // `text-ink` no compila a nada: no existe `--color-ink` en el tema.
+    expect(tema.has('--color-ink')).toBe(false)
+    expect(secundaria).not.toMatch(/\btext-ink\b/)
+    expect(secundaria).toContain('text-foreground')
   })
 })
