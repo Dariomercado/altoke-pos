@@ -102,3 +102,45 @@ Tomadas contra las alternativas presentadas, con el costo de cada una a la vista
   usuarios) y **el producto no se publica en una URL abierta**; la producción por tenant se decide
   después de M2. Vercel Authentication protege producción gratis pero exige cuenta de Vercel, que no
   sirve para un kiosquero.
+
+### L5 — Verificación independiente (T12)
+
+Pasada de `gentle-ai-verify` sobre la rama completa, con la base arriba y **dos terminales reales** contra
+el API arrancado (no `app.inject`): **S1–S6 met, sin blockers, 42 archivos / 516 tests**.
+
+Lo que se verificó a mano, no por nombre de test: RLS (sin `app.tenant_id` el rol de runtime ve 0 filas
+en las cinco tablas y un `INSERT` ajeno viola la política; con tenant A ve 12 eventos y 0 de B), tokens
+(0 filas con token plano, hash de 64 hex, vencido y revocado dan 401), `solo_lectura` (pull 200, push
+403), offline (con la API caída el libro conserva 6 eventos y el acuse queda en 0; al volver, salen los
+mismos 6 ids), «nada se reescribe» (0 `UPDATE`/`DELETE` sobre `eventos` en todo el árbol; un push
+conflictivo deja el mismo `md5` de cuerpo), `schemaVersion` futura rechazada al empujar, outbox fiscal
+en 0 filas con el modo F0 y una venta que se escribe aunque el camino del outbox lance, y el contrato
+de 80 mm intacto.
+
+La prueba de valor de test: se mutó cada regla y se midió qué se cae. Ocho de nueve mutaciones hicieron
+fallar tests. **La novena dejó la suite verde**: quitar el `pg_advisory_xact_lock` que serializa la
+detección de sobreventa no rompía nada, y con el lock afuera la alerta se perdía 5 de 6 veces en una
+carrera de dos conexiones. Un test in-process no la reproduce (medido: pasaba 4/4 sin el lock), así que
+quedó como probe ejecutable en `odd/probes/carrera-de-sobreventa.mjs`, documentado con su porqué.
+
+Tres defectos se corrigieron en `842ff00`:
+
+- **Una fila ilegible dejaba ciego al tenant entero.** Un evento guardado con `schemaVersion` más nueva
+  que la del código hacía fallar `traerEventos` y el `GET` devolvía 500 para todas las terminales y
+  todos los eventos, para siempre: nada la puede saltear y nada puede reescribirla. Ahora se saltea, se
+  cuenta y se reporta como `ilegibles`.
+- **`DELETE /auth/sesion` con `Content-Type: application/json` y sin cuerpo** daba 400 y **no revocaba
+  el token**. Un logout que falla en silencio es un bug de seguridad con forma de error de validación.
+- El lock de sobreventa, cubierto por el probe.
+
+Quedan anotados como follow-ups, ninguno bloqueante: el motivo de conflicto es engañoso cuando la
+secuencia la ocupa otro `id`; `eventos.id` es único global entre tenants (delata la existencia de un id
+ajeno, aunque los ULID no son adivinables); el rol de runtime conserva `UPDATE`/`DELETE` sobre `eventos`,
+así que «nada se reescribe» lo sostiene el código y no el privilegio; no hay rate limit en el login
+(`demasiados_intentos` está reservado); el tenant por defecto de una Sesión multi-membresía no tiene
+test a nivel ruta; y el savepoint de sucursal no hace `RELEASE`.
+
+### L6 — Entrega
+
+Rama `feat/m2-sync`, 13 commits, ~14.700 líneas escritas. PR abierta contra `main`; el merge es decisión
+del humano, igual que en M1.
