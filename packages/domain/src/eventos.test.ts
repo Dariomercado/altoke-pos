@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   MEDIOS_PAGO,
+  TERMINAL_DEL_SERVIDOR,
   leerDesde,
+  proyeccionSobreventas,
   proyeccionStock,
   proyeccionTurno,
   proyectar,
   resumirTurno,
   validarEvento,
+  validarEventoDeCliente,
 } from './eventos'
 import type { Evento } from './eventos'
 
@@ -264,6 +267,7 @@ describe('validarEvento — el borde no persiste basura', () => {
       evento(9, { tipo: 'venta_anulada', ventaId: 'v', motivo: 'error' }),
       evento(10, { tipo: 'ajuste_stock', sku: 'a', delta: -2, causa: 'merma' }),
       evento(11, { tipo: 'turno_cerrado', turnoId: 't', declaradoCentavos: 500 }),
+      sobreventa(12),
     ]
 
     for (const candidato of todos) {
@@ -312,5 +316,117 @@ describe('validarEvento — el borde no persiste basura', () => {
     for (const medio of MEDIOS_PAGO) {
       expect(medio).toMatch(/^(efectivo|tarjeta_manual|transferencia|qr)$/)
     }
+  })
+})
+
+/**
+ * Un `sobreventa_detectada` bien formado: lo escribe el servidor en su terminal reservada.
+ *
+ * `0001` §3: dos terminales venden la última unidad, las dos ventas valen, el stock queda
+ * negativo y el libro lo dice con este evento. La UI lo muestra como alerta.
+ */
+function sobreventa(secuencia: number, extra: object = {}): Evento {
+  return evento(
+    secuencia,
+    {
+      tipo: 'sobreventa_detectada',
+      ventaId: 'venta-2',
+      sku: 'alfajor',
+      cantidad: 1,
+      stockProyectado: -1,
+      ...extra,
+    },
+    TERMINAL_DEL_SERVIDOR,
+  )
+}
+
+describe('sobreventa_detectada — la última unidad vendida dos veces', () => {
+  it('es informativa: no mueve el stock ni cambia el turno', () => {
+    const libro = [
+      evento(1, { tipo: 'turno_abierto', turnoId: 'turno-1', fondoCentavos: 0 }),
+      evento(2, { tipo: 'venta_iniciada', ventaId: 'venta-1', turnoId: 'turno-1' }),
+      evento(3, {
+        tipo: 'item_agregado',
+        ventaId: 'venta-1',
+        sku: 'alfajor',
+        cantidad: 2,
+        precioUnitarioCentavos: 1000,
+      }),
+      evento(4, { tipo: 'venta_confirmada', ventaId: 'venta-1', totalCentavos: 2000 }),
+    ]
+
+    const sinSobreventa = {
+      stock: proyectar(libro, proyeccionStock()),
+      turno: resumirTurno(proyectar(libro, proyeccionTurno())),
+    }
+    const conSobreventa = {
+      stock: proyectar([...libro, sobreventa(5)], proyeccionStock()),
+      turno: resumirTurno(proyectar([...libro, sobreventa(5)], proyeccionTurno())),
+    }
+
+    // El stock ya era negativo sin el evento: el evento cuenta el hecho, no lo produce.
+    expect(conSobreventa).toStrictEqual(sinSobreventa)
+    expect(conSobreventa.stock).toEqual({ alfajor: -2 })
+  })
+
+  it('aplicarla dos veces no cambia la proyección: el mismo hecho no es dos hechos', () => {
+    const proyeccion = proyeccionSobreventas()
+    const hecho = sobreventa(1)
+
+    const una = proyeccion.aplicar(proyeccion.inicial, hecho)
+    const dos = proyeccion.aplicar(una, hecho)
+
+    expect(dos).toBe(una)
+    expect(proyectar([hecho, hecho], proyeccionSobreventas())).toStrictEqual(
+      proyectar([hecho], proyeccionSobreventas()),
+    )
+  })
+
+  it('agrupa las alertas por venta y sku: dos hechos son dos entradas', () => {
+    const otra = sobreventa(2, { sku: 'agua', cantidad: 2, stockProyectado: -2 })
+
+    expect(
+      proyectar([sobreventa(1), otra], proyeccionSobreventas()),
+      'la proyección de alertas es la que el POS muestra como sobreventa',
+    ).toStrictEqual({
+      'venta-2': {
+        alfajor: { ventaId: 'venta-2', sku: 'alfajor', cantidad: 1, stockProyectado: -1 },
+        agua: { ventaId: 'venta-2', sku: 'agua', cantidad: 2, stockProyectado: -2 },
+      },
+    })
+  })
+
+  it('validarEvento la acepta y exige un stock proyectado negativo y entero', () => {
+    expect(() => validarEvento(sobreventa(1))).not.toThrow()
+    expect(() => validarEvento(sobreventa(1, { stockProyectado: 0 }))).toThrow(RangeError)
+    expect(() => validarEvento(sobreventa(1, { stockProyectado: 1 }))).toThrow(RangeError)
+    expect(() => validarEvento(sobreventa(1, { stockProyectado: -1.5 }))).toThrow(RangeError)
+    expect(() => validarEvento(sobreventa(1, { cantidad: 0 }))).toThrow(RangeError)
+    expect(() => validarEvento(sobreventa(1, { ventaId: '' }))).toThrow(TypeError)
+  })
+})
+
+describe('validarEventoDeCliente — la caja no escribe lo que sólo el servidor presencia', () => {
+  it('acepta los eventos que la caja sí escribe', () => {
+    expect(() =>
+      validarEventoDeCliente(
+        evento(1, { tipo: 'ajuste_stock', sku: 'alfajor', delta: 1, causa: 'compra' }),
+      ),
+    ).not.toThrow()
+  })
+
+  it('rechaza `sobreventa_detectada` aunque `validarEvento` la acepte', () => {
+    // El servidor la escribe; una terminal que la empuja estaría inventando un hecho que no
+    // presenció. Acá la terminal es la propia de la caja: lo que se rechaza es el tipo.
+    const comoCaja = { ...sobreventa(1), terminalId: TERMINAL }
+
+    expect(() => validarEvento(comoCaja)).not.toThrow()
+    expect(() => validarEventoDeCliente(comoCaja)).toThrow(/sobreventa_detectada/)
+  })
+
+  it('rechaza escribir con la terminal reservada del servidor', () => {
+    const comoServidor = { ...evento(1, { tipo: 'ajuste_stock', sku: 'a', delta: 1, causa: 'x' }), terminalId: TERMINAL_DEL_SERVIDOR }
+
+    expect(() => validarEventoDeCliente(comoServidor)).toThrow(/servidor/)
   })
 })

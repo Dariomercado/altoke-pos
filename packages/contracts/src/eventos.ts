@@ -15,8 +15,12 @@
  *   - Un **envoltorio** sin `tenantId`, `terminalId` u `ocurridoEn`: sin ellos el evento no
  *     pertenece a ninguna terminal ni tiene lugar en el tiempo.
  *
- * `sobreventa_detectada` **no está**: el evento todavía no existe en la unión del dominio (lo agrega
- * T6, odd/tasks/altoke-m2-sync.md). Un tipo que el libro no tiene no se inventa en el contrato.
+ * `sobreventa_detectada` sí está, porque el dominio ya lo tiene (T6, odd/tasks/altoke-m2-sync.md):
+ * es el evento con el que el servidor cuenta que dos terminales vendieron la última unidad (0001 §3,
+ * 0003 §Sobreventa). El contrato lo valida con las mismas reglas que `validarEvento`, incluido el
+ * stock proyectado negativo; quién puede escribirlo no es asunto del schema sino del borde que
+ * empuja (`validarEventoDeCliente` en el API). Reconocerlo al leer es lo que deja que la terminal
+ * lo aplique y muestre la alerta.
  */
 
 import { z } from 'zod'
@@ -143,6 +147,18 @@ export const esquemaEvento = z.discriminatedUnion(
       tipo: z.literal('turno_cerrado'),
       turnoId: texto('turnoId'),
       declaradoCentavos: centavos('declaradoCentavos'),
+    }),
+    z.object({
+      ...ENVOLTORIO,
+      tipo: z.literal('sobreventa_detectada'),
+      ventaId: texto('ventaId'),
+      sku: texto('sku'),
+      cantidad: enteroPositivo('cantidad'),
+      // Negativo por definición: una sobreventa deja el stock bajo cero. Es el mismo límite que
+      // `validarEvento`, para que el servidor no acepte lo que la terminal rechazaría.
+      stockProyectado: entero('stockProyectado').refine((valor) => valor < 0, {
+        error: 'stockProyectado debe ser negativo: una sobreventa deja el stock bajo cero.',
+      }),
     }),
   ],
   { error: tipoDesconocido },

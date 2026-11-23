@@ -13,6 +13,9 @@
  *   - **`recibido_en` es el cursor de la traída y es único por tenant.** `now()` es el reloj de la
  *     transacción, así que un lote entero compartiría el valor y `recibido_en > desde` perdería a
  *     los empatados al cortar una página (0005_eventos_recibido_en_unico.sql).
+ *   - **La sobreventa es única por venta y SKU.** El servidor la escribe al detectarla
+ *     (`sobreventas.ts`), y el índice parcial `eventos_sobreventa_unica` (0006) es lo que hace que
+ *     un reintento sea "ya estaba" y no una segunda alerta en la UI.
  *
  * Todas las funciones se llaman **dentro** de una transacción con `app.tenant_id` seteado
  * (`enTransaccionDeTenant`): RLS es la red de seguridad y además cada consulta filtra por
@@ -147,6 +150,8 @@ function aTexto(valor: unknown): string {
 /** El nombre del índice único de `recibido_en`, para distinguir una colisión de reloj de un `id` usado. */
 const INDICE_RECIBIDO_UNICO = 'eventos_tenant_recibido_en_unico'
 const RESTRICCION_ID = 'eventos_id_key'
+/** Una sobreventa ya escrita para esa venta y SKU: el hecho está contado, no hay nada que agregar. */
+const INDICE_SOBREVENTA_UNICA = 'eventos_sobreventa_unica'
 
 /**
  * Inserta el evento o dice por qué no. Nunca pisa una fila existente.
@@ -181,6 +186,7 @@ export async function guardarEvento(
 
       await conexion.query('ROLLBACK TO SAVEPOINT evento')
       if (restriccion === INDICE_RECIBIDO_UNICO) continue
+      if (restriccion === INDICE_SOBREVENTA_UNICA) return { tipo: 'duplicado' }
       if (restriccion === RESTRICCION_ID) return { tipo: 'conflicto', motivo: MENSAJE_CONFLICTO_ID }
       throw error
     }

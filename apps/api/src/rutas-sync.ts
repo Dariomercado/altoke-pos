@@ -10,10 +10,13 @@
  *     `terminalId` del sobre se comprueban contra la sesión; un evento que declara otro tenant se
  *     rechaza y jamás se escribe. Un `terminalId` inventado sólo puede escribir dentro del tenant
  *     de quien lo manda (no hay tabla `terminales` en 0003 §Esquema: el id lo lleva el cliente).
+ *   - **`servidor` no es una caja.** Es la identidad reservada de los eventos que emite el servidor
+ *     (`sobreventa_detectada`), con su propia secuencia: un cliente no puede empujar con ese
+ *     `terminalId` ni escribir un tipo de `TIPOS_DEL_SERVIDOR` (`validarEventoDeCliente`).
  *   - **Un evento malo no aborta el lote.** Se reporta en `rechazados` con su motivo y sus hermanos
  *     se escriben: el objetivo del sync es que la terminal no pierda ventas, no castigar el lote.
  *   - **Nada se reescribe.** Idempotencia y conflictos los arbitra la base (`eventos.ts`); acá sólo
- *     se arma el informe.
+ *     se arma el informe. La detección de sobreventa corre en la misma transacción (`sobreventas.ts`).
  *
  * El sobre se valida a mano y **evento por evento** con los schemas de `@altoke/contracts`: parsear
  * la solicitud entera con `syncEmpujarSolicitud` respondería 400 al primer evento inválido y se
@@ -29,7 +32,7 @@ import {
   syncTraerConsulta,
 } from '@altoke/contracts'
 import type { SyncEmpujarRespuesta } from '@altoke/contracts'
-import { validarEvento } from '@altoke/domain'
+import { TERMINAL_DEL_SERVIDOR, validarEventoDeCliente } from '@altoke/domain'
 import type { Consultable, FuenteDeConexiones } from './db.ts'
 import { autenticacionDe, autenticar, requiereRol } from './auth.ts'
 import { validacion } from './errores.ts'
@@ -40,6 +43,7 @@ import {
   traerEventos,
 } from './eventos.ts'
 import type { Conflicto, Referencia } from './eventos.ts'
+import { bloquearSobreventas, detectarSobreventa } from './sobreventas.ts'
 import { enTransaccionDeTenant } from './transaccion.ts'
 import { leerCuerpo } from './validacion.ts'
 
@@ -47,6 +51,8 @@ import { leerCuerpo } from './validacion.ts'
 export const LARGO_MAXIMO_TERMINAL = 64
 export const MENSAJE_TERMINAL_INVALIDO =
   'terminalId debe ser un texto no vacío de hasta 64 caracteres.'
+export const MENSAJE_TERMINAL_RESERVADA =
+  `terminalId "${TERMINAL_DEL_SERVIDOR}" está reservado para los eventos del servidor.`
 
 // Mensajes del contrato (`packages/contracts/src/sync.ts`): el sobre se arma con los mismos textos
 // que vería un cliente que validara con `syncEmpujarSolicitud`.
@@ -81,6 +87,10 @@ function leerTerminalId(valor: unknown): string {
   if (typeof valor !== 'string') throw validacion(MENSAJE_TERMINAL_INVALIDO, 'terminalId')
   if (valor.trim() === '' || valor.length > LARGO_MAXIMO_TERMINAL) {
     throw validacion(MENSAJE_TERMINAL_INVALIDO, 'terminalId')
+  }
+  // La identidad del servidor no se pide ni se empuja: sus eventos los escribe el servidor.
+  if (valor === TERMINAL_DEL_SERVIDOR) {
+    throw validacion(MENSAJE_TERMINAL_RESERVADA, 'terminalId')
   }
   return valor
 }
@@ -130,6 +140,12 @@ function motivoDeError(error: unknown): string {
     : 'El evento no es válido.'
 }
 
+/** Un evento que puede haber dejado el stock bajo cero: es el único que resta unidades de una venta. */
+function puedeMoverStock(crudo: EventoCrudo): boolean {
+  const tipo = (crudo as { readonly tipo?: unknown } | null | undefined)?.tipo
+  return tipo === 'item_agregado'
+}
+
 /**
  * Escribe lo que se pueda y devuelve el informe. Nunca lanza por un evento inválido, conflictivo o
  * duplicado: eso es información para la terminal, no un error del servidor.
@@ -143,6 +159,13 @@ async function empujarLote(
   const duplicados: Referencia[] = []
   const conflictos: Conflicto[] = []
   const rechazados: Rechazo[] = []
+
+  // Antes de escribir nada: si el lote trae ítems de venta, el chequeo de sobreventa se serializa
+  // por tenant. Dos terminales que venden la última unidad a la vez tienen que ver, la segunda, la
+  // venta de la primera ya escrita; si no, el stock queda negativo y ninguna alerta lo cuenta.
+  if (lote.eventos.some(puedeMoverStock)) {
+    await bloquearSobreventas(conexion, tenantId)
+  }
 
   for (const [indice, crudo] of lote.eventos.entries()) {
     const parseado = parsearEvento(crudo)
@@ -169,7 +192,8 @@ async function empujarLote(
     }
 
     try {
-      validarEvento(evento)
+      // El borde del cliente: además de la forma, que no escriba lo que sólo emite el servidor.
+      validarEventoDeCliente(evento)
     } catch (error) {
       rechazados.push({ id: evento.id, motivo: motivoDeError(error) })
       continue
@@ -178,8 +202,12 @@ async function empujarLote(
     const guardado = await guardarEvento(conexion, tenantId, evento)
     const referencia = { id: evento.id, secuencia: evento.secuencia }
 
-    if (guardado.tipo === 'aceptado') aceptados.push(referencia)
-    else if (guardado.tipo === 'duplicado') duplicados.push(referencia)
+    if (guardado.tipo === 'aceptado') {
+      aceptados.push(referencia)
+      // Sólo un evento aceptado puede haber cambiado el stock: un duplicado ya fue detectado
+      // cuando entró, y un conflicto no escribe nada.
+      await detectarSobreventa(conexion, tenantId, evento)
+    } else if (guardado.tipo === 'duplicado') duplicados.push(referencia)
     else conflictos.push({ ...referencia, motivo: guardado.motivo })
   }
 

@@ -12,12 +12,17 @@ export type { AlicuotaBps, Centavos } from './dinero.ts'
 
 export {
   MEDIOS_PAGO,
+  TERMINAL_DEL_SERVIDOR,
+  TIPOS_DEL_SERVIDOR,
+  esTipoDelServidor,
   leerDesde,
+  proyeccionSobreventas,
   proyeccionStock,
   proyeccionTurno,
   proyectar,
   resumirTurno,
   validarEvento,
+  validarEventoDeCliente,
 } from './eventos.ts'
 export type {
   EstadoTurno,
@@ -27,7 +32,10 @@ export type {
   PagoRegistrado,
   Proyeccion,
   ResumenTurno,
+  Sobreventa,
+  SobreventasPorVenta,
   StockPorSku,
+  TipoDelServidor,
   VentaEnTurno,
 } from './eventos.ts'
 

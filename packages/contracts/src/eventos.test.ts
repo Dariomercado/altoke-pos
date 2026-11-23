@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { TERMINAL_DEL_SERVIDOR } from '@altoke/domain'
 import type { Evento } from '@altoke/domain'
 import { parsearEvento } from './eventos'
 
@@ -38,11 +39,20 @@ const EVENTOS_DEL_DOMINIO: readonly Evento[] = [
   evento(9, { tipo: 'venta_anulada', ventaId: 'venta-1', motivo: 'error del cajero' }),
   evento(10, { tipo: 'ajuste_stock', sku: 'alfajor', delta: -3, causa: 'merma' }),
   evento(11, { tipo: 'turno_cerrado', turnoId: 'turno-1', declaradoCentavos: 120_000 }),
+  // El único tipo de origen servidor: su terminal es la reservada, no una caja.
+  evento(12, {
+    tipo: 'sobreventa_detectada',
+    ventaId: 'venta-2',
+    sku: 'alfajor',
+    cantidad: 1,
+    stockProyectado: -1,
+    terminalId: TERMINAL_DEL_SERVIDOR,
+  }),
 ]
 
 describe('parsearEvento — lo que el dominio produce', () => {
-  it('acepta los once tipos del libro y los devuelve sin tocar', () => {
-    expect(EVENTOS_DEL_DOMINIO).toHaveLength(11)
+  it('acepta los doce tipos del libro y los devuelve sin tocar', () => {
+    expect(EVENTOS_DEL_DOMINIO).toHaveLength(12)
 
     // La asignación es la prueba de tipos: el resultado del parseo se aplica al libro como
     // `Evento` sin castear. Si el schema inventara una forma propia, esto no compilaría.
@@ -72,19 +82,24 @@ describe('parsearEvento — lo que no puede aceptar', () => {
     expect(resultado.error.error.detalle.campo).toBe('tipo')
   })
 
-  it('no acepta `sobreventa_detectada`: ese evento todavía no existe en la unión del dominio', () => {
-    // Guardo de T6: cuando el evento se agregue al dominio, este test tiene que cambiar con él.
-    // Un contrato no puede ir por delante del libro que valida.
-    const resultado = parsearEvento({
-      ...VALIDO,
-      tipo: 'sobreventa_detectada',
-      sku: 'alfajor',
-      faltante: 2,
-    })
+  it('rechaza una sobreventa sin stock negativo y señala `stockProyectado`', () => {
+    // `validarEvento` exige lo mismo: una "sobreventa" con stock 0 o positivo se contradice con
+    // el único número que el cajero va a leer en la alerta.
+    for (const stockProyectado of [0, 3, -1.5]) {
+      const resultado = parsearEvento({
+        ...VALIDO,
+        tipo: 'sobreventa_detectada',
+        terminalId: TERMINAL_DEL_SERVIDOR,
+        ventaId: 'venta-2',
+        sku: 'alfajor',
+        cantidad: 1,
+        stockProyectado,
+      })
 
-    expect(resultado.ok).toBe(false)
-    if (resultado.ok) return
-    expect(resultado.error.error.detalle.campo).toBe('tipo')
+      expect(resultado.ok, `stockProyectado ${stockProyectado} → rechazo`).toBe(false)
+      if (resultado.ok) return
+      expect(resultado.error.error.detalle.campo).toBe('stockProyectado')
+    }
   })
 
   it('rechaza una schemaVersion futura en vez de aplicarla con las reglas de otra versión', () => {
