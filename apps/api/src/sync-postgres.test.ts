@@ -331,6 +331,28 @@ describe.skipIf(sinBase)('sync contra Postgres', () => {
     expect(filas[0]?.['id']).toBe(primero['id'])
   })
 
+  it('dos tenants pueden usar el mismo id: el único de id es por tenant', async () => {
+    const cuentaA = await registrar('id-tenant-a')
+    const cuentaB = await registrar('id-tenant-b')
+    const terminalA = `caja-${sufijo}-id-a`
+    const terminalB = `caja-${sufijo}-id-b`
+
+    const compartido = `evt-${randomUUID()}`
+    await empujar(cuentaA.token, terminalA, [evento(cuentaA.tenant.id, terminalA, 1, { id: compartido })])
+
+    const respuesta = await empujar(cuentaB.token, terminalB, [
+      evento(cuentaB.tenant.id, terminalB, 1, { id: compartido }),
+    ])
+
+    expect(respuesta['conflictos'], 'el id que otro tenant usó no es asunto de este').toEqual([])
+    expect(respuesta['rechazados']).toEqual([])
+    expect(respuesta['aceptados']).toHaveLength(1)
+
+    const filas = await filasDe(cuentaB.tenant.id, terminalB)
+    expect(filas).toHaveLength(1)
+    expect(filas[0]?.['id']).toBe(compartido)
+  })
+
   it('un evento inválido es rechazado y sus hermanos se aceptan', async () => {
     const cuenta = await registrar('rechazo')
     const terminal = `caja-${sufijo}-4`
