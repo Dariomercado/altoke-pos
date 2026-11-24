@@ -84,7 +84,25 @@ describe('asegurarSucursal', () => {
       ROLLBACK,
       RELEASE,
     ])
-    expect(sqls.at(-1)).toBe(RELEASE)
+    // El savepoint se cierra **antes** de releer: si la relectura falla, ya no queda nada abierto.
+    expect(sqls.at(-1)).toContain('FROM sucursales')
+  })
+
+  it('libera el savepoint aunque se caiga la relectura del ganador', async () => {
+    const { consultable, sqls } = conexionGuionada([
+      { filas: [] },
+      { error: violacionDeUnicidad() },
+      { error: new Error('se cayó la conexión') },
+    ])
+
+    await expect(asegurarSucursal(consultable, 'tenant-1', 'Nueva')).rejects.toThrow(
+      'se cayó la conexión',
+    )
+
+    expect(sqls.filter((sql) => sql.startsWith('ROLLBACK') || sql.startsWith('RELEASE'))).toEqual([
+      ROLLBACK,
+      RELEASE,
+    ])
   })
 
   it('no toca el savepoint si la sucursal ya existía', async () => {
