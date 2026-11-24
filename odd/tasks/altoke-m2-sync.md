@@ -175,3 +175,33 @@ son inestables bajo contención. Queda anotado, no escondido.
 del humano: `eventos.id` único por tenant (hoy un id ajeno delata que existe en otro tenant) y sacar
 `UPDATE`/`DELETE` al rol de runtime sobre `eventos` (hoy "nada se reescribe" lo sostiene el código y no
 el privilegio). Los dos son migración y riesgo alto, y no tienen por qué viajar con la lógica de M2.
+
+### L8 — Los dos follow-ups de esquema, cerrados fuera de M2
+
+Rama `fix/m2-schema-follow-ups` contra `main`, cuatro commits, decisión del humano de no meterlos en el
+PR de M2:
+
+- `628904b` **savepoint**: el `RELEASE` se emite antes de releer la sucursal ganadora, así que una
+  relectura que reviente ya no deja la subtransacción abierta. Era el hallazgo `R3-savepoint-readfail`
+  del review de M2.
+- `60824ba` **`0007`**: `eventos.id` es único **por tenant**. Antes, un id que ya existía en otro tenant
+  volvía como `conflictos` y el servidor delataba su existencia. `RESTRICCION_ID` pasa a nombrar la
+  restricción real, `eventos_tenant_id_unico`.
+- `8167dc7` **`0008`**: el rol de runtime pierde `UPDATE` y `DELETE` sobre `eventos`. «Nada se reescribe»
+  deja de ser buena voluntad del código: lo sostiene el privilegio. `SELECT` e `INSERT` quedan, y las
+  demás tablas no se tocan.
+- `0f0feb0` **timeout**: el test del límite de login paga diez `scrypt` a propósito y cinco segundos no
+  alcanzaban con la suite entera en paralelo.
+
+Verificación independiente: **los cinco ítems PASS**. `pnpm typecheck`, `eslint` y **535/535 tests**
+limpios; `pg_constraint` sin `eventos_id_key` y con `eventos_tenant_id_unico`;
+`has_table_privilege` de `altoke_app` sobre `eventos` en `SELECT=true INSERT=true UPDATE=false
+DELETE=false`, idéntico en la base viva y en una base nueva migrada de cero; `UPDATE`/`DELETE` como
+`altoke_app` dan `42501`; ningún camino del repo necesitaba esos privilegios; el borrado en cascada de
+un tenant sigue funcionando.
+
+Hallazgo de proceso del verifier: **un run completo de la suite puede tardar 20 minutos y dar timeouts en
+falso** mientras otro proceso compite por CPU (medido con load average 98 sobre 8 núcleos): no es un rojo
+del cambio, y el mismo run limpio tarda 17 s. Y las migraciones nuevas con `ALTER TABLE` piden lock
+exclusivo sobre `eventos` mientras 43 archivos de test la están escribiendo en paralelo, que es de dónde
+sale el stall la primera vez que se aplican.

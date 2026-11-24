@@ -8,3 +8,8 @@
 ALTER TABLE eventos DROP CONSTRAINT eventos_id_key;
 
 ALTER TABLE eventos ADD CONSTRAINT eventos_tenant_id_unico UNIQUE (tenant_id, id);
+
+-- Reversible: `ALTER TABLE eventos DROP CONSTRAINT eventos_tenant_id_unico;` y después
+-- `ALTER TABLE eventos ADD CONSTRAINT eventos_id_key UNIQUE (id);`. Ojo: la vuelta **no se puede
+-- aplicar** mientras dos tenants compartan un id, y ese es justo el caso que esta migración habilita.
+-- Revertir exige decidir qué id se queda con cada valor duplicado.

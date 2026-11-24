@@ -41,7 +41,7 @@ function conexionGuionada(respuestas: readonly Respuesta[]): {
 function violacionDeUnicidad(): Error {
   return Object.assign(new Error('duplicate key value violates unique constraint'), {
     code: '23505',
-    constraint: 'sucursales_tenant_nombre_unico',
+    constraint: 'sucursales_tenant_nombre_idx',
   })
 }
 
