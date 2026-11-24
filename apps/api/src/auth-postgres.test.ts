@@ -683,7 +683,13 @@ describe.skipIf(sinBase)('auth contra Postgres', () => {
     expect(conPermiso.statusCode, conPermiso.body).toBe(201)
   })
 
-  it('el login se frena después de demasiados intentos fallidos para el mismo email', async () => {
+  // Diez fallos son diez `scrypt` reales a propósito: el límite se cuenta antes de la base, así que
+  // el test tiene que pagar la derivación para probar que el bloqueo llega igual. El timeout por
+  // defecto (5 s) alcanza en una máquina tranquila, no con la suite entera corriendo en paralelo.
+  it(
+    'el login se frena después de demasiados intentos fallidos para el mismo email',
+    { timeout: 60_000 },
+    async () => {
     await registrar('limite')
 
     for (let intento = 1; intento <= MAXIMO_INTENTOS_POR_DEFECTO; intento += 1) {
@@ -708,6 +714,7 @@ describe.skipIf(sinBase)('auth contra Postgres', () => {
     // Otro email del mismo local no queda castigado por el ataque a este.
     const otro = await registrar('limite-otro')
     expect(otro.token).toMatch(/^[A-Za-z0-9_-]{43}$/)
-  })
+    },
+  )
 
 })

@@ -27,9 +27,10 @@ sucursales     (id, tenant_id, nombre)
 usuarios       (id, email unique, nombre, password_hash, creado_en)
 membresias     (usuario_id, tenant_id, rol)            pk (usuario_id, tenant_id)
 sesiones       (token_hash pk, usuario_id, tenant_id, creada_en, expira_en, revocada_en)
-eventos        (id unique, tenant_id, terminal_id, secuencia, tipo,
+eventos        (id, tenant_id, terminal_id, secuencia, tipo,
                 ocurrido_en, schema_version, cuerpo jsonb, recibido_en)
-                pk (tenant_id, terminal_id, secuencia)
+                pk (tenant_id, terminal_id, secuencia) · unique (tenant_id, id)
+                — el id es del evento, no del servidor: único por tenant desde `0007`
 acuses         (tenant_id, terminal_id, ultima_secuencia)  pk (tenant_id, terminal_id)
 outbox_fiscal  (id, tenant_id, venta_id, estado, intentos, proximo_intento_en,
                 motivo, creado_en)                      — vacía en M2, ver §Outbox fiscal

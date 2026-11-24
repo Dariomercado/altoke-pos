@@ -150,6 +150,41 @@ describe.skipIf(sinBase)('RLS por app.tenant_id', () => {
       await limpiar(duenio, semilla)
     }
   })
+
+  it('el rol de la API no puede reescribir ni borrar eventos, ni en su propio tenant', async () => {
+    const semilla = await sembrarDosTenants(duenio)
+
+    // Cada intento en su propia transacción: en Postgres el primer error aborta la que sigue.
+    async function intentar(sql: string): Promise<unknown> {
+      const conexion = await app.connect()
+      try {
+        await conexion.query('BEGIN')
+        await conexion.query('SELECT set_config($1, $2, true)', ['app.tenant_id', semilla.tenantA])
+        return await conexion.query(sql, [semilla.eventoA])
+      } finally {
+        await conexion.query('ROLLBACK').catch(() => {})
+        conexion.release()
+      }
+    }
+
+    try {
+      await expect(
+        intentar(`UPDATE eventos SET tipo = 'otra_cosa' WHERE id = $1`),
+        'sin UPDATE, «nada se reescribe» no depende de que el código se porte bien',
+      ).rejects.toMatchObject({ code: '42501' })
+
+      await expect(
+        intentar('DELETE FROM eventos WHERE id = $1'),
+        'sin DELETE, un evento no se puede borrar aunque el código lo intente',
+      ).rejects.toMatchObject({ code: '42501' })
+
+      // La fila queda como estaba: el dueño la ve con su tipo original.
+      const fila = await duenio.query('SELECT tipo FROM eventos WHERE id = $1', [semilla.eventoA])
+      expect(fila.rows[0]?.['tipo']).toBe('venta')
+    } finally {
+      await limpiar(duenio, semilla)
+    }
+  })
 })
 
 /** Dos tenants con un evento cada uno. Como dueño: RLS no lo alcanza. */

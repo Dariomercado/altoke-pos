@@ -160,7 +160,8 @@ function aTexto(valor: unknown): string {
 
 /** El nombre del índice único de `recibido_en`, para distinguir una colisión de reloj de un `id` usado. */
 const INDICE_RECIBIDO_UNICO = 'eventos_tenant_recibido_en_unico'
-const RESTRICCION_ID = 'eventos_id_key'
+/** La clave del evento es única por tenant: el id de otro tenant no es asunto de este. */
+const RESTRICCION_ID = 'eventos_tenant_id_unico'
 /** Una sobreventa ya escrita para esa venta y SKU: el hecho está contado, no hay nada que agregar. */
 const INDICE_SOBREVENTA_UNICA = 'eventos_sobreventa_unica'
 

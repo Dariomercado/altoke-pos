@@ -162,8 +162,10 @@ export async function asegurarSucursal(
     if (restriccionUnica(error) === undefined) throw error
 
     await conexion.query('ROLLBACK TO SAVEPOINT sucursal')
-    const ganadora = await buscarSucursalPorNombre(conexion, tenantId, nombre)
+    // Se cierra acá y no después de releer: el trabajo del savepoint terminó cuando se deshizo el
+    // `INSERT`, y una relectura que reviente no puede dejar la subtransacción abierta.
     await conexion.query('RELEASE SAVEPOINT sucursal')
+    const ganadora = await buscarSucursalPorNombre(conexion, tenantId, nombre)
     // Si la violación no era por el nombre, no hay fila que reusar: el error es real.
     if (ganadora === undefined) throw error
     return ganadora
