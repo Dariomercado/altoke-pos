@@ -54,8 +54,11 @@ esquema— el aislamiento por tenant sería decorativo. Por eso:
 
 - `altoke` es el dueño: corre migraciones (`MIGRATIONS_DATABASE_URL`) y nada más.
 - `altoke_app` es el rol de la API (`DATABASE_URL`): `USAGE` en el schema `public`,
-  `SELECT/INSERT/UPDATE/DELETE` en las tablas de datos y `USAGE` en las secuencias. **Sin ownership
-  y sin DDL**: no puede crear ni alterar tablas, y no puede escribir `schema_migrations`.
+  `SELECT/INSERT/UPDATE/DELETE` en las tablas de datos y `USAGE` en las secuencias. **Sin ownership y
+  sin DDL**: no puede crear ni alterar tablas, y no puede escribir `schema_migrations`.
+  Sobre `eventos` es **append-only por privilegio**: la migración `0008` le saca `UPDATE` y `DELETE`,
+  así que «el servidor nunca reescribe un evento» no depende de que el código se porte bien. Si algún
+  día hay que corregir algo, la corrección es un evento nuevo.
 
 El rol existe por dos caminos que dejan la base igual: un volumen nuevo lo crea
 [`docker/initdb/00_rol_app.sql`](docker/initdb/00_rol_app.sql) (montado en
